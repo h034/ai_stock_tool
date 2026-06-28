@@ -109,7 +109,7 @@ function Dashboard({ user, onLogout }) {
   const [sectors, setSectors] = useState([]);
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
-  const [threshold, setThreshold] = useState(70);
+  const [threshold, setThreshold] = useState(() => Number(localStorage.getItem("score_threshold") ?? 70));
   const [notification, setNotification] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -161,6 +161,10 @@ function Dashboard({ user, onLogout }) {
     if (tab === "logs") fetchActivityLogs();
     if (tab === "mypage") fetchMe();
   }, [tab, fetchActivityLogs, fetchMe]);
+
+  useEffect(() => {
+    localStorage.setItem("score_threshold", threshold);
+  }, [threshold]);
 
   const selectPost = (post) => {
     setSelectedPost(post);

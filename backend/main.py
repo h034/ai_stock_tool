@@ -4,14 +4,23 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from database import init_db, get_posts, upsert_score
+from database import (
+    init_db, get_posts, upsert_score,
+    upsert_user, log_activity, get_activity_logs, get_user_activity, get_user_score_stats,
+)
 from collector import start_collectors, on_new_post
 from notifier import should_notify, notify
+from auth import (
+    get_current_user, get_optional_user,
+    get_discord_login_url, fetch_discord_user, create_jwt,
+    FRONTEND_URL,
+)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +46,70 @@ app.add_middleware(
 )
 
 
+# ── Auth ────────────────────────────────────────────────────────────────────
+
+@app.get("/auth/discord")
+def discord_login():
+    url = get_discord_login_url()
+    return RedirectResponse(url)
+
+
+@app.get("/auth/discord/callback")
+async def discord_callback(code: str):
+    try:
+        discord_user = await fetch_discord_user(code)
+    except Exception as e:
+        logger.error(f"Discord OAuth error: {e}")
+        return RedirectResponse(f"{FRONTEND_URL}/?error=auth_failed")
+
+    user = upsert_user(
+        discord_id=discord_user["id"],
+        username=discord_user["username"],
+        discriminator=discord_user.get("discriminator", "0"),
+        avatar=discord_user.get("avatar"),
+    )
+    log_activity(
+        user_id=str(user["id"]),
+        username=user["username"],
+        avatar=user["avatar"],
+        action="LOGIN",
+        detail={"discord_id": discord_user["id"]},
+    )
+
+    token = create_jwt(
+        user_id=str(user["id"]),
+        discord_id=discord_user["id"],
+        username=user["username"],
+        avatar=user["avatar"],
+        is_admin=user["is_admin"],
+    )
+    return RedirectResponse(f"{FRONTEND_URL}/?token={token}")
+
+
+@app.get("/me")
+def get_me(user: dict = Depends(get_current_user)):
+    stats = get_user_score_stats(user["sub"])
+    activity = get_user_activity(user["sub"])
+    return {
+        "id": user["sub"],
+        "discord_id": user["discord_id"],
+        "username": user["username"],
+        "avatar": user.get("avatar"),
+        "is_admin": user.get("is_admin", False),
+        "stats": {k: (float(v) if v is not None else 0) for k, v in stats.items()},
+        "recent_activity": activity,
+    }
+
+
+# ── Activity Logs ────────────────────────────────────────────────────────────
+
+@app.get("/activity-logs")
+def list_activity_logs(limit: int = 100, user: dict = Depends(get_current_user)):
+    return get_activity_logs(limit=limit)
+
+
+# ── Posts & Scores ────────────────────────────────────────────────────────────
+
 class ScoreRequest(BaseModel):
     post_id: str
     human_score: Optional[int] = Field(None, ge=0, le=100)
@@ -45,7 +118,7 @@ class ScoreRequest(BaseModel):
 
 
 @app.get("/posts")
-def list_posts(limit: int = 50):
+def list_posts(limit: int = 50, user: dict = Depends(get_current_user)):
     posts = get_posts(limit=limit)
     for p in posts:
         if p.get("posted_at"):
@@ -58,15 +131,28 @@ def list_posts(limit: int = 50):
 
 
 @app.post("/scores")
-def save_score(req: ScoreRequest):
+def save_score(req: ScoreRequest, user: dict = Depends(get_current_user)):
     score_id = upsert_score(
         post_id=req.post_id,
         human_score=req.human_score,
         ai_score=None,
         sectors=req.sectors,
         memo=req.memo,
+        user_id=user["sub"],
+        scored_by_username=user["username"],
     )
-    # スコアが閾値を超えていたら通知
+    log_activity(
+        user_id=user["sub"],
+        username=user["username"],
+        avatar=user.get("avatar"),
+        action="SCORE_SAVED",
+        detail={
+            "post_id": req.post_id,
+            "score": req.human_score,
+            "sectors": req.sectors,
+            "memo": req.memo,
+        },
+    )
     if req.human_score is not None and should_notify(req.human_score):
         posts = get_posts(limit=200)
         target = next((p for p in posts if p["id"] == req.post_id), None)

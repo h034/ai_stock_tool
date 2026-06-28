@@ -17,9 +17,19 @@ services:
         value: "107780257626128497"
       - key: SCORE_THRESHOLD
         value: "70"
+      - key: DISCORD_REDIRECT_URI
+        value: https://ai-stock-tool-api.onrender.com/auth/discord/callback
+      - key: FRONTEND_URL
+        value: https://ai-stock-tool.vercel.app
       - key: X_RSS_URL
         sync: false
       - key: LINE_NOTIFY_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: JWT_SECRET
         sync: false
 
 databases:

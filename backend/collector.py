@@ -7,7 +7,7 @@ import re
 import httpx
 from dotenv import load_dotenv
 
-from database import insert_post
+from database import insert_post, bulk_insert_posts
 
 load_dotenv()
 
@@ -50,7 +50,7 @@ def _fire_callbacks(post_id: str, source: str, content: str):
 async def poll_truth_social():
     """
     CNN が公開している Trump の Truth Social アーカイブ JSON を5分ごとにポーリング。
-    初回起動時は全投稿を DB に保存（100件以上の履歴を自動取得）。
+    初回起動時は全投稿を一括 INSERT（イベントループをブロックしないよう to_thread 使用）。
     """
     seen_ids: set[str] = set()
     newest_date: str | None = None
@@ -63,69 +63,68 @@ async def poll_truth_social():
                 resp = await client.get(TRUTH_SOCIAL_JSON_URL)
                 resp.raise_for_status()
 
-                all_posts = resp.json()  # list of dicts
+                all_posts = resp.json()
                 if not isinstance(all_posts, list):
                     raise ValueError("Unexpected JSON format (expected list)")
 
-                # 初回: 全件処理（履歴取得）
-                # 以降: 前回より新しい投稿だけ処理
-                if first_run:
-                    candidates = sorted(all_posts, key=lambda x: x.get("created_at", ""))
-                else:
-                    candidates = [
-                        p for p in all_posts
-                        if newest_date and p.get("created_at", "") > newest_date
-                    ]
+            # JSONパース済み。候補を絞り込む
+            if first_run:
+                candidates = sorted(all_posts, key=lambda x: x.get("created_at", ""))
+            else:
+                candidates = [
+                    p for p in all_posts
+                    if newest_date and p.get("created_at", "") > newest_date
+                ]
 
+            # 挿入用データを準備（CPU処理のみ、まだDBは触らない）
+            to_insert = []
+            for post in candidates:
+                pid = str(post.get("id", ""))
+                if not pid or pid in seen_ids:
+                    continue
+                seen_ids.add(pid)
+
+                content = _strip_html(post.get("content", "")).strip()
+                if not content:
+                    continue
+
+                created_raw = post.get("created_at", "")
+                try:
+                    posted_at = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                except Exception:
+                    posted_at = datetime.now(timezone.utc)
+
+                to_insert.append({
+                    "source": "truth_social",
+                    "post_id": pid,
+                    "content": content,
+                    "posted_at": posted_at,
+                })
+
+                if created_raw and (newest_date is None or created_raw > newest_date):
+                    newest_date = created_raw
+
+            # DB挿入をバックグラウンドスレッドで実行（イベントループをブロックしない）
+            if to_insert:
+                saved = await asyncio.to_thread(bulk_insert_posts, to_insert)
+            else:
                 saved = 0
-                for post in candidates:
-                    pid = str(post.get("id", ""))
-                    if not pid or pid in seen_ids:
-                        continue
-                    seen_ids.add(pid)
 
-                    raw_content = post.get("content", "")
-                    content = _strip_html(raw_content).strip()
-                    if not content:
-                        continue
-
-                    created_raw = post.get("created_at", "")
-                    try:
-                        posted_at = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
-                    except Exception:
-                        posted_at = datetime.now(timezone.utc)
-
-                    db_id = insert_post(
-                        source="truth_social",
-                        post_id=pid,
-                        content=content,
-                        posted_at=posted_at,
-                    )
-                    if db_id:
-                        saved += 1
-                        if not first_run:
-                            logger.info(f"[Truth Social] new post: {content[:80]}")
-                            _fire_callbacks(db_id, "truth_social", content)
-
-                    # 最新日時を更新
-                    if created_raw and (newest_date is None or created_raw > newest_date):
-                        newest_date = created_raw
-
-                if first_run:
-                    logger.info(
-                        f"[Truth Social] startup: {saved} posts loaded from CNN archive "
-                        f"(total in archive: {len(all_posts)})"
-                    )
-                    first_run = False
-                elif saved > 0:
-                    logger.info(f"[Truth Social] {saved} new posts")
+            if first_run:
+                logger.info(
+                    f"[Truth Social] startup: {saved} posts loaded from CNN archive "
+                    f"(archive total: {len(all_posts)})"
+                )
+                first_run = False
+            elif saved > 0:
+                logger.info(f"[Truth Social] {saved} new posts")
 
         except httpx.HTTPStatusError as e:
             logger.error(f"[Truth Social] HTTP {e.response.status_code}: {TRUTH_SOCIAL_JSON_URL}")
         except Exception as e:
             logger.error(f"[Truth Social] error: {e}")
 
-        await asyncio.sleep(300)  # 5分ごとにポーリング（CNN の更新頻度に合わせる）
+        await asyncio.sleep(300)  # 5分ごとにポーリング
 
 
 # ── X（旧Twitter）RSS ポーリング ────────────────────────────────────────────

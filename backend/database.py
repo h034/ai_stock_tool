@@ -194,6 +194,35 @@ def insert_post(source: str, post_id: str, content: str, posted_at: datetime) ->
             return row["id"] if row else None
 
 
+def bulk_insert_posts(posts: list[dict]) -> int:
+    """
+    posts: list of {source, post_id, content, posted_at}
+    1トランザクションで一括挿入。重複はスキップ。
+    挿入件数を返す。
+    """
+    if not posts:
+        return 0
+    now = datetime.now(timezone.utc)
+    values = [
+        (str(uuid.uuid4()), p["source"], p["post_id"], p["content"], p["posted_at"], now)
+        for p in posts
+    ]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            from psycopg2.extras import execute_values
+            execute_values(
+                cur,
+                """
+                INSERT INTO posts (id, source, post_id, content, posted_at, fetched_at)
+                VALUES %s
+                ON CONFLICT (source, post_id) DO NOTHING
+                """,
+                values,
+                page_size=500,
+            )
+            return cur.rowcount
+
+
 def upsert_score(
     post_id: str,
     human_score: int | None,

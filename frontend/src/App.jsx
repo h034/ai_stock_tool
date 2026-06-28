@@ -736,13 +736,12 @@ function AdminPanel({ onRefresh }) {
       <div style={{ ...cardStyle, border: "1px solid #334155" }}>
         <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#f8fafc" }}>Truth Social 収集状況</h3>
         <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 2 }}>
-          <div>状態：<span style={{ color: "#ef4444" }}>●</span> <span style={{ color: "#fca5a5" }}>RSS収集ブロック中（403）</span></div>
-          <div>理由：Truth Socialはクラウドサーバーのアクセスをブロック</div>
-          <div>対策：上の手動追加フォームから発言を入力してください</div>
+          <div>状態：<span style={{ color: "#22c55e" }}>●</span> <span style={{ color: "#4ade80" }}>自動収集中（CNNアーカイブ経由）</span></div>
+          <div>ソース：CNN公開アーカイブ JSON（5分ごと更新）</div>
+          <div>備考：Truth Social直接アクセスは403のため、CNNの全投稿アーカイブを使用</div>
         </div>
         <div style={{ marginTop: 12, background: "#0f172a", borderRadius: 6, padding: 10, fontSize: 12, color: "#64748b" }}>
-          <div style={{ marginBottom: 4, color: "#475569" }}>または環境変数で別のRSSソースを指定：</div>
-          <code style={{ color: "#22d3ee" }}>TRUTH_SOCIAL_RSS_URL=https://your-rss-proxy.com/trump.rss</code>
+          <code style={{ color: "#22d3ee" }}>ix.cnn.io/data/truth-social/truth_archive.json</code>
         </div>
       </div>
     </div>

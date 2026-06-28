@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from database import (
-    init_db, get_posts, upsert_score,
+    init_db, get_posts, upsert_score, insert_post,
     upsert_user, log_activity, get_activity_logs, get_user_activity, get_user_score_stats,
 )
 from collector import start_collectors, on_new_post
@@ -164,3 +164,43 @@ def save_score(req: ScoreRequest, user: dict = Depends(get_current_user)):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── Admin: Manual Post Injection ─────────────────────────────────────────────
+
+class ManualPost(BaseModel):
+    source: str = "truth_social"
+    content: str
+    posted_at: Optional[str] = None  # ISO8601, defaults to now
+
+
+class ManualPostRequest(BaseModel):
+    posts: list[ManualPost]
+
+
+@app.post("/admin/posts")
+def admin_inject_posts(req: ManualPostRequest, user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    from datetime import datetime, timezone
+    import hashlib
+
+    inserted = 0
+    for p in req.posts:
+        posted_at = (
+            datetime.fromisoformat(p.posted_at.replace("Z", "+00:00"))
+            if p.posted_at
+            else datetime.now(timezone.utc)
+        )
+        post_id_hash = hashlib.md5(f"{p.source}:{p.content[:100]}".encode()).hexdigest()
+        result = insert_post(
+            source=p.source,
+            post_id=post_id_hash,
+            content=p.content,
+            posted_at=posted_at,
+        )
+        if result:
+            inserted += 1
+
+    return {"inserted": inserted, "total": len(req.posts)}

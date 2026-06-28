@@ -13,12 +13,15 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-TRUTH_SOCIAL_INSTANCE = os.getenv("TRUTH_SOCIAL_INSTANCE", "truthsocial.com")
-TRUMP_TRUTH_SOCIAL_ID = os.getenv("TRUMP_TRUTH_SOCIAL_ID", "107780257626128497")
 X_RSS_URL = os.getenv("X_RSS_URL", "")
 
-# Truth Social RSS（Mastodon互換 RSS フィード）
-TRUTH_SOCIAL_RSS = f"https://{TRUTH_SOCIAL_INSTANCE}/@realDonaldTrump.rss"
+# Truth Social は直接アクセスするとクラウドIPをブロックする(403)ため、
+# RSSHub（オープンソースのRSSプロキシ）経由で取得する。
+# 環境変数 TRUTH_SOCIAL_RSS_URL で上書き可能。
+TRUTH_SOCIAL_RSS = os.getenv(
+    "TRUTH_SOCIAL_RSS_URL",
+    "https://rsshub.app/truthsocial/user/realDonaldTrump",
+)
 
 # ブラウザとして見せることで IP ブロックを回避
 HEADERS = {

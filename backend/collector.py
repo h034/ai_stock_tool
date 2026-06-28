@@ -52,11 +52,12 @@ def _fire_callbacks(post_id: str, source: str, content: str):
 
 async def poll_truth_social():
     """
-    Truth Social の公開RSSフィードをポーリング。
-    API（/api/v1/accounts/...）はクラウドIPをブロックするためRSSを使用。
+    Truth SocialのRSSをポーリング。クラウドIPをブロックされた場合は
+    バックオフして1時間ごとに再試行（ログスパム防止）。
     """
     seen: set[str] = set()
     first_run = True
+    consecutive_errors = 0
 
     while True:
         try:
@@ -64,6 +65,7 @@ async def poll_truth_social():
                 resp = await client.get(TRUTH_SOCIAL_RSS)
                 resp.raise_for_status()
                 items = _parse_rss(resp.text)
+                consecutive_errors = 0
 
                 saved = 0
                 for item in items:
@@ -88,9 +90,17 @@ async def poll_truth_social():
                     first_run = False
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[Truth Social] HTTP {e.response.status_code} on RSS: {TRUTH_SOCIAL_RSS}")
+            consecutive_errors += 1
+            if consecutive_errors <= 2:
+                logger.error(f"[Truth Social] HTTP {e.response.status_code}: RSS blocked — will retry in 1h. URL: {TRUTH_SOCIAL_RSS}")
+            # 403が続く場合は1時間後に再試行（ログを汚さない）
+            wait = 3600 if e.response.status_code == 403 else 60
+            await asyncio.sleep(wait)
+            continue
         except Exception as e:
-            logger.error(f"[Truth Social] RSS poll error: {e}")
+            consecutive_errors += 1
+            if consecutive_errors <= 3:
+                logger.error(f"[Truth Social] RSS poll error: {e}")
 
         await asyncio.sleep(60)
 

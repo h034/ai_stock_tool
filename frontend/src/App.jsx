@@ -237,6 +237,7 @@ function Dashboard({ user, onLogout }) {
           ["mypage", "マイページ"],
           ["logs", "操作ログ"],
           ["settings", "設定"],
+          ...(user.is_admin ? [["admin", "🛠 管理"]] : []),
         ].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{ ...tabStyle, ...(tab === key ? tabActiveStyle : {}) }}>
@@ -447,6 +448,11 @@ function Dashboard({ user, onLogout }) {
           </div>
         )}
 
+        {/* 管理パネル（adminのみ） */}
+        {tab === "admin" && user.is_admin && (
+          <AdminPanel onRefresh={fetchPosts} />
+        )}
+
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ maxWidth: 480 }}>
@@ -485,6 +491,93 @@ function Dashboard({ user, onLogout }) {
 }
 
 // ── Sub components ─────────────────────────────────────────────────────────
+
+function AdminPanel({ onRefresh }) {
+  const [text, setText] = useState("");
+  const [source, setSource] = useState("truth_social");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const submit = async () => {
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return;
+    setSubmitting(true);
+    setResult(null);
+    try {
+      const posts = lines.map(content => ({ source, content }));
+      const res = await axios.post(`${API_URL}/admin/posts`, { posts }, { headers: authHeaders() });
+      setResult(`✅ ${res.data.inserted} 件追加（${res.data.total} 件中）`);
+      setText("");
+      onRefresh();
+    } catch (e) {
+      setResult(`❌ エラー: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <div style={{ ...cardStyle, border: "1px solid #7c3aed55", marginBottom: 16 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15, color: "#a78bfa" }}>🛠 管理者パネル</h3>
+        <p style={{ margin: "0 0 20px", fontSize: 12, color: "#64748b" }}>
+          Truth SocialのAPIはクラウドサーバーからブロックされているため、手動で発言を追加できます。
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 13, color: "#94a3b8", display: "block", marginBottom: 8 }}>ソース</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["truth_social", "Truth Social"], ["x", "X (旧Twitter)"]].map(([val, label]) => (
+              <button key={val} onClick={() => setSource(val)}
+                style={{ ...btnStyle(source === val ? "#7c3aed" : "#1e293b"), border: `1px solid ${source === val ? "#7c3aed" : "#334155"}`, color: source === val ? "#fff" : "#94a3b8" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 13, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+            発言テキスト（1行1投稿）
+          </label>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder={"例：\nWe are going to put tremendous tariffs on China!\nGreat news for American steel workers!"}
+            style={{ width: "100%", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0", padding: 12, fontSize: 13, resize: "vertical", minHeight: 160, boxSizing: "border-box", fontFamily: "monospace" }}
+          />
+          <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>
+            {text.split("\n").filter(l => l.trim()).length} 件入力中
+          </div>
+        </div>
+
+        {result && (
+          <div style={{ background: result.startsWith("✅") ? "#052e16" : "#450a0a", border: `1px solid ${result.startsWith("✅") ? "#166534" : "#991b1b"}`, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: result.startsWith("✅") ? "#4ade80" : "#fca5a5", marginBottom: 16 }}>
+            {result}
+          </div>
+        )}
+
+        <button onClick={submit} disabled={submitting || text.trim().length === 0}
+          style={{ ...btnStyle("#7c3aed"), padding: "10px 24px", fontWeight: "bold", opacity: submitting || !text.trim() ? 0.5 : 1 }}>
+          {submitting ? "追加中..." : "発言を追加"}
+        </button>
+      </div>
+
+      <div style={{ ...cardStyle, border: "1px solid #334155" }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#f8fafc" }}>Truth Social 収集状況</h3>
+        <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 2 }}>
+          <div>状態：<span style={{ color: "#ef4444" }}>●</span> <span style={{ color: "#fca5a5" }}>RSS収集ブロック中（403）</span></div>
+          <div>理由：Truth Socialはクラウドサーバーのアクセスをブロック</div>
+          <div>対策：上の手動追加フォームから発言を入力してください</div>
+        </div>
+        <div style={{ marginTop: 12, background: "#0f172a", borderRadius: 6, padding: 10, fontSize: 12, color: "#64748b" }}>
+          <div style={{ marginBottom: 4, color: "#475569" }}>または環境変数で別のRSSソースを指定：</div>
+          <code style={{ color: "#22d3ee" }}>TRUTH_SOCIAL_RSS_URL=https://your-rss-proxy.com/trump.rss</code>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, unit, color }) {
   return (

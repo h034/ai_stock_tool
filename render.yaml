@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ai-stock-tool-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-stock-tool-db
+          property: connectionString
+      - key: TRUTH_SOCIAL_INSTANCE
+        value: truthsocial.com
+      - key: TRUMP_TRUTH_SOCIAL_ID
+        value: "107780257626128497"
+      - key: SCORE_THRESHOLD
+        value: "70"
+      - key: X_RSS_URL
+        sync: false
+      - key: LINE_NOTIFY_TOKEN
+        sync: false
+
+databases:
+  - name: ai-stock-tool-db
+    databaseName: ai_stock_tool
+    user: ai_stock_user
+    plan: free

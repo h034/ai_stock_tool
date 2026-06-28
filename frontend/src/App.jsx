@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 
 function useIsMobile() {
@@ -128,11 +128,13 @@ function Dashboard({ user, onLogout }) {
   const [myStats, setMyStats] = useState(null);
   const [myActivity, setMyActivity] = useState([]);
   const [contentCollapsed, setContentCollapsed] = useState(true);
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const thresholdBubbleRef = useRef(null);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/posts?limit=50`, { headers: authHeaders() });
+      const res = await axios.get(`${API_URL}/posts?limit=100`, { headers: authHeaders() });
       setPosts(res.data);
     } catch (e) {
       if (e.response?.status === 401) onLogout();
@@ -269,12 +271,22 @@ function Dashboard({ user, onLogout }) {
         {tab === "feed" && (
           <div style={{ display: "grid", gridTemplateColumns: (user.is_scorer && !isMobile) ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontSize: 14, color: "#94a3b8" }}>{posts.length} 件の発言</span>
-                {loading && <span style={{ fontSize: 12, color: "#64748b" }}>読み込み中...</span>}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[["all","全て"], ["truth_social","Truth Social"], ["x","X"]].map(([val, label]) => (
+                    <button key={val} onClick={() => setSourceFilter(val)}
+                      style={{ ...btnStyle(sourceFilter === val ? "#1e3a5f" : "#0f172a"), color: sourceFilter === val ? "#93c5fd" : "#64748b", border: `1px solid ${sourceFilter === val ? "#3b82f6" : "#334155"}`, fontSize: 12, padding: "4px 10px" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span style={{ fontSize: 12, color: "#475569" }}>
+                  {posts.filter(p => sourceFilter === "all" || p.source === sourceFilter).length} 件
+                  {loading && " 読み込み中..."}
+                </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {posts.map((post) => (
+                {posts.filter(p => sourceFilter === "all" || p.source === sourceFilter).map((post) => (
                   <div key={post.id} onClick={() => selectPost(post)}
                     style={{ ...cardStyle, border: selectedPost?.id === post.id ? "1px solid #3b82f6" : "1px solid #334155", cursor: "pointer" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -522,25 +534,20 @@ function Dashboard({ user, onLogout }) {
             <div style={{ ...cardStyle, border: "1px solid #334155" }}>
               <h3 style={{ margin: "0 0 20px", fontSize: 15, color: "#f8fafc" }}>通知設定</h3>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 14, color: "#94a3b8", display: "block", marginBottom: 10 }}>通知閾値スコア</label>
-                <div style={{ position: "relative", paddingTop: 28 }}>
-                  <div style={{
-                    position: "absolute", top: 0,
-                    left: `calc(${threshold}% + ${(8 - threshold * 0.16).toFixed(1)}px)`,
-                    transform: "translateX(-50%)",
-                    background: scoreColor(threshold),
-                    color: "#fff",
-                    padding: "2px 9px",
-                    borderRadius: 12,
-                    fontSize: 14,
-                    fontWeight: "bold",
-                    pointerEvents: "none",
-                    whiteSpace: "nowrap",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
-                  }}>
-                    {threshold}%
-                  </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <label style={{ fontSize: 14, color: "#94a3b8" }}>通知閾値スコア</label>
+                  <span ref={thresholdBubbleRef} style={{ background: scoreColor(threshold), color: "#fff", padding: "3px 12px", borderRadius: 12, fontSize: 15, fontWeight: "bold", minWidth: 52, textAlign: "center" }}>{threshold}%</span>
+                </div>
+                <div style={{ position: "relative" }}>
                   <input type="range" min={0} max={100} value={threshold}
+                    onInput={(e) => {
+                      const v = Number(e.target.value);
+                      setThreshold(v);
+                      if (thresholdBubbleRef.current) {
+                        thresholdBubbleRef.current.textContent = v + "%";
+                        thresholdBubbleRef.current.style.background = scoreColor(v);
+                      }
+                    }}
                     onChange={(e) => setThreshold(Number(e.target.value))}
                     style={{ width: "100%", accentColor: scoreColor(threshold), cursor: "pointer" }} />
                 </div>
@@ -805,7 +812,7 @@ function scoreColor(score) {
 
 function formatTime(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" });
 }
 
 const cardStyle = { background: "#1e293b", borderRadius: 10, padding: 16 };

@@ -559,9 +559,9 @@ function Dashboard({ user, onLogout }) {
               </div>
               <div style={{ background: "#0f172a", borderRadius: 8, padding: 12, fontSize: 13, color: "#94a3b8", lineHeight: 1.8 }}>
                 <p style={{ margin: "0 0 6px" }}>通知の設定はRenderの環境変数で管理しています：</p>
-                <div><code style={{ color: "#22d3ee" }}>LINE_NOTIFY_TOKEN</code> — LINE通知トークン</div>
+                <div><code style={{ color: "#22d3ee" }}>DISCORD_WEBHOOK_URL</code> — Discord Webhook URL</div>
                 <div><code style={{ color: "#22d3ee" }}>SCORE_THRESHOLD</code> — 閾値（現在: {threshold}%）</div>
-                <div><code style={{ color: "#22d3ee" }}>SMTP_*</code> — メール通知設定</div>
+                <div><code style={{ color: "#22d3ee" }}>SMTP_*</code> — メール通知設定（任意）</div>
               </div>
             </div>
             <div style={{ ...cardStyle, border: "1px solid #334155", marginTop: 16 }}>

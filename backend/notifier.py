@@ -10,7 +10,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-LINE_NOTIFY_TOKEN = os.getenv("LINE_NOTIFY_TOKEN", "")
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -25,27 +25,37 @@ def should_notify(score: int) -> bool:
 
 def notify(content: str, score: int, source: str):
     label = "Truth Social" if source == "truth_social" else "X"
-    message = f"[{label}] スコア {score}%\n\n{content}"
-    if LINE_NOTIFY_TOKEN:
-        _notify_line(message)
+    color = 0xef4444 if score >= 70 else 0xf59e0b  # red / yellow
+    if DISCORD_WEBHOOK_URL:
+        _notify_discord(content, score, label, color)
     if SMTP_HOST and NOTIFY_EMAIL:
+        message = f"[{label}] スコア {score}%\n\n{content}"
         _notify_email(f"トランプ発言アラート（スコア {score}%）", message)
 
 
-def _notify_line(message: str):
+def _notify_discord(content: str, score: int, label: str, color: int):
     try:
-        resp = httpx.post(
-            "https://notify-api.line.me/api/notify",
-            headers={"Authorization": f"Bearer {LINE_NOTIFY_TOKEN}"},
-            data={"message": message},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            logger.info("LINE notification sent")
+        # Discord Embed で見やすく送信
+        short = content[:300] + ("..." if len(content) > 300 else "")
+        payload = {
+            "embeds": [{
+                "title": f"🚨 トランプ発言アラート — スコア {score}%",
+                "description": short,
+                "color": color,
+                "fields": [
+                    {"name": "ソース", "value": label, "inline": True},
+                    {"name": "スコア", "value": f"{score}%", "inline": True},
+                ],
+                "footer": {"text": "トランプ発言影響スコアラー"},
+            }]
+        }
+        resp = httpx.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+        if resp.status_code in (200, 204):
+            logger.info(f"Discord notification sent (score={score}%)")
         else:
-            logger.error(f"LINE notify failed: {resp.status_code} {resp.text}")
+            logger.error(f"Discord webhook failed: {resp.status_code} {resp.text}")
     except Exception as e:
-        logger.error(f"LINE notify error: {e}")
+        logger.error(f"Discord notify error: {e}")
 
 
 def _notify_email(subject: str, body: str):

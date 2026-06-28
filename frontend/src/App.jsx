@@ -46,7 +46,7 @@ function LoginPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <h1 style={{ color: "#f8fafc", fontSize: 24, marginBottom: 8, textAlign: "center" }}>
-        トランプ発言 株価影響スコアラー
+        トランプ発言影響スコアラー
       </h1>
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 40, textAlign: "center" }}>
         リアルタイム収集 × 人手スコアリング
@@ -202,7 +202,7 @@ function Dashboard({ user, onLogout }) {
       {/* ヘッダー */}
       <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 18, color: "#f8fafc" }}>トランプ発言 株価影響スコアラー</h1>
+          <h1 style={{ margin: 0, fontSize: 18, color: "#f8fafc" }}>トランプ発言影響スコアラー</h1>
           <p style={{ margin: "2px 0 0", fontSize: 11, color: "#64748b" }}>リアルタイム収集 × 人手スコアリング</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

@@ -1,0 +1,49 @@
+/* ── モバイル対応 (768px以下) ── */
+@media (max-width: 767px) {
+
+  /* ヘッダー */
+  .header-subtitle { display: none !important; }
+  .header-username  { display: none !important; }
+  .header-admin-badge { display: none !important; }
+  .header-update-btn  { display: none !important; }
+
+  /* タブバー */
+  .tab-bar {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-bar button {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* フィードグリッド: 1カラム */
+  .feed-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* スコアリングパネル: sticky解除 */
+  .scoring-panel {
+    position: static !important;
+  }
+
+  /* 統計グリッド: 2カラム */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* 設定・管理パネル: 全幅 */
+  .settings-container { max-width: 100% !important; }
+  .admin-container    { max-width: 100% !important; }
+
+  /* コンテンツパディング縮小 */
+  .main-content { padding: 14px 12px !important; }
+
+  /* ヘッダーパディング縮小 */
+  .main-header { padding: 10px 14px !important; }
+
+  /* ヘッダータイトル文字サイズ */
+  .header-title { font-size: 14px !important; }
+}

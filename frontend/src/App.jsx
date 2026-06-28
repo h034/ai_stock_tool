@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import "./responsive.css";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -222,22 +223,22 @@ function Dashboard({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "sans-serif" }}>
       {/* ヘッダー */}
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: isMobile ? "10px 14px" : "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="main-header" style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 14 : 18, color: "#f8fafc" }}>トランプ発言影響スコアラー</h1>
-          {!isMobile && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#64748b" }}>リアルタイム収集 × 人手スコアリング</p>}
+          <h1 className="header-title" style={{ margin: 0, fontSize: 18, color: "#f8fafc" }}>トランプ発言影響スコアラー</h1>
+          <p className="header-subtitle" style={{ margin: "2px 0 0", fontSize: 11, color: "#64748b" }}>リアルタイム収集 × 人手スコアリング</p>
         </div>
-        <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ background: "#22c55e22", color: "#22c55e", padding: "2px 8px", borderRadius: 12, fontSize: 11 }}>● Live</span>
-          {!isMobile && <button onClick={fetchPosts} style={btnStyle("#334155")}>更新</button>}
+          <button className="header-update-btn" onClick={fetchPosts} style={btnStyle("#334155")}>更新</button>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", borderRadius: 20, padding: "4px 10px 4px 4px" }}>
             <img
               src={avatarUrl(user.discord_id, user.avatar)}
               alt={user.username}
               style={{ width: 26, height: 26, borderRadius: "50%", border: "1px solid #334155" }}
             />
-            {!isMobile && <span style={{ fontSize: 13, color: "#e2e8f0" }}>{user.username}</span>}
-            {!isMobile && user.is_admin && <span style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 10, padding: "1px 6px", borderRadius: 4 }}>Admin</span>}
+            <span className="header-username" style={{ fontSize: 13, color: "#e2e8f0" }}>{user.username}</span>
+            {user.is_admin && <span className="header-admin-badge" style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 10, padding: "1px 6px", borderRadius: 4 }}>Admin</span>}
             <button onClick={onLogout} style={{ ...btnStyle("#1e293b"), fontSize: 11, padding: "2px 8px", color: "#64748b" }}>ログアウト</button>
           </div>
         </div>
@@ -251,7 +252,7 @@ function Dashboard({ user, onLogout }) {
       )}
 
       {/* タブ */}
-      <div style={{ display: "flex", gap: 0, padding: isMobile ? "12px 14px 0" : "16px 24px 0", borderBottom: "1px solid #334155", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="tab-bar" style={{ display: "flex", gap: 0, padding: "16px 24px 0", borderBottom: "1px solid #334155", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {[
           ["feed", isMobile ? "フィード" : "発言フィード"],
           ["history", isMobile ? "履歴" : "スコア履歴"],
@@ -267,11 +268,11 @@ function Dashboard({ user, onLogout }) {
         ))}
       </div>
 
-      <div style={{ padding: isMobile ? "14px 12px" : 24 }}>
+      <div className="main-content" style={{ padding: 24 }}>
 
         {/* 発言フィード */}
         {tab === "feed" && (
-          <div style={{ display: "grid", gridTemplateColumns: (user.is_scorer && !isMobile) ? "1fr 380px" : "1fr", gap: 20 }}>
+          <div className="feed-grid" style={{ display: "grid", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -321,7 +322,7 @@ function Dashboard({ user, onLogout }) {
 
             {/* スコアリングパネル（scorerのみ） */}
             {user.is_scorer && <div>
-              <div style={{ ...cardStyle, border: "1px solid #334155", position: isMobile ? "static" : "sticky", top: 20 }}>
+              <div className="scoring-panel" style={{ ...cardStyle, border: "1px solid #334155", position: "sticky", top: 20 }}>
                 <h3 style={{ margin: "0 0 16px", fontSize: 15, color: "#f8fafc" }}>スコアリング</h3>
                 {selectedPost ? (
                   <>
@@ -466,7 +467,7 @@ function Dashboard({ user, onLogout }) {
             {!user.is_admin && <BootstrapButton onSuccess={onLogout} />}
 
             {myStats && (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+              <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
                 <StatCard label="スコアリング数" value={myStats.total_scored} unit="件" />
                 <StatCard label="平均スコア" value={myStats.avg_score?.toFixed(1) ?? "—"} unit="%" />
                 <StatCard label="高インパクト発言" value={myStats.high_impact_count} unit="件 (70%+)" color="#ef4444" />
@@ -532,7 +533,7 @@ function Dashboard({ user, onLogout }) {
 
         {/* 設定 */}
         {tab === "settings" && (
-          <div style={{ maxWidth: isMobile ? "100%" : 480 }}>
+          <div className="settings-container" style={{ maxWidth: 480 }}>
             <div style={{ ...cardStyle, border: "1px solid #334155" }}>
               <h3 style={{ margin: "0 0 20px", fontSize: 15, color: "#f8fafc" }}>通知設定</h3>
               <div style={{ marginBottom: 20 }}>

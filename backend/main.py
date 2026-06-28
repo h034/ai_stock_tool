@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from database import (
     init_db, get_posts, upsert_score, insert_post,
     upsert_user, log_activity, get_activity_logs, get_user_activity, get_user_score_stats,
+    get_all_users, set_user_role,
 )
 from collector import start_collectors, on_new_post
 from notifier import should_notify, notify
@@ -82,6 +83,7 @@ async def discord_callback(code: str):
         username=user["username"],
         avatar=user["avatar"],
         is_admin=user["is_admin"],
+        is_scorer=user.get("is_scorer", False),
     )
     return RedirectResponse(f"{FRONTEND_URL}/?token={token}")
 
@@ -96,6 +98,7 @@ def get_me(user: dict = Depends(get_current_user)):
         "username": user["username"],
         "avatar": user.get("avatar"),
         "is_admin": user.get("is_admin", False),
+        "is_scorer": user.get("is_scorer", False),
         "stats": {k: (float(v) if v is not None else 0) for k, v in stats.items()},
         "recent_activity": activity,
     }
@@ -132,6 +135,8 @@ def list_posts(limit: int = 50, user: dict = Depends(get_current_user)):
 
 @app.post("/scores")
 def save_score(req: ScoreRequest, user: dict = Depends(get_current_user)):
+    if not user.get("is_scorer"):
+        raise HTTPException(status_code=403, detail="スコアリング権限がありません")
     score_id = upsert_score(
         post_id=req.post_id,
         human_score=req.human_score,
@@ -176,6 +181,26 @@ class ManualPost(BaseModel):
 
 class ManualPostRequest(BaseModel):
     posts: list[ManualPost]
+
+
+@app.get("/admin/users")
+def admin_list_users(user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return get_all_users()
+
+
+class RoleRequest(BaseModel):
+    is_scorer: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+@app.patch("/admin/users/{user_id}/role")
+def admin_set_role(user_id: str, req: RoleRequest, user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    set_user_role(user_id, is_scorer=req.is_scorer, is_admin=req.is_admin)
+    return {"ok": True}
 
 
 @app.post("/admin/posts")

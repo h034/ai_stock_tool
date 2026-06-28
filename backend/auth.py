@@ -25,13 +25,14 @@ _USER_URL = "https://discord.com/api/users/@me"
 security = HTTPBearer(auto_error=False)
 
 
-def create_jwt(user_id: str, discord_id: str, username: str, avatar: str | None, is_admin: bool) -> str:
+def create_jwt(user_id: str, discord_id: str, username: str, avatar: str | None, is_admin: bool, is_scorer: bool = False) -> str:
     payload = {
         "sub": user_id,
         "discord_id": discord_id,
         "username": username,
         "avatar": avatar,
         "is_admin": is_admin,
+        "is_scorer": is_scorer,
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

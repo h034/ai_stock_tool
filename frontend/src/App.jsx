@@ -252,7 +252,7 @@ function Dashboard({ user, onLogout }) {
 
         {/* 発言フィード */}
         {tab === "feed" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontSize: 14, color: "#94a3b8" }}>{posts.length} 件の発言</span>
@@ -290,8 +290,8 @@ function Dashboard({ user, onLogout }) {
               </div>
             </div>
 
-            {/* スコアリングパネル */}
-            <div>
+            {/* スコアリングパネル（scorerのみ） */}
+            {user.is_scorer && <div>
               <div style={{ ...cardStyle, border: "1px solid #334155", position: "sticky", top: 20 }}>
                 <h3 style={{ margin: "0 0 16px", fontSize: 15, color: "#f8fafc" }}>スコアリング</h3>
                 {selectedPost ? (
@@ -359,7 +359,7 @@ function Dashboard({ user, onLogout }) {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
         )}
 
@@ -519,6 +519,26 @@ function AdminPanel({ onRefresh }) {
   const [source, setSource] = useState("truth_social");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/admin/users`, { headers: authHeaders() });
+      setUsers(res.data);
+    } catch {}
+    finally { setUsersLoading(false); }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const toggleScorer = async (userId, current) => {
+    try {
+      await axios.patch(`${API_URL}/admin/users/${userId}/role`, { is_scorer: !current }, { headers: authHeaders() });
+      fetchUsers();
+    } catch (e) { alert("更新失敗: " + (e.response?.data?.detail || e.message)); }
+  };
 
   const submit = async () => {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
@@ -583,6 +603,41 @@ function AdminPanel({ onRefresh }) {
           style={{ ...btnStyle("#7c3aed"), padding: "10px 24px", fontWeight: "bold", opacity: submitting || !text.trim() ? 0.5 : 1 }}>
           {submitting ? "追加中..." : "発言を追加"}
         </button>
+      </div>
+
+      <div style={{ ...cardStyle, border: "1px solid #334155", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 14, color: "#f8fafc" }}>ユーザー管理</h3>
+          <button onClick={fetchUsers} style={btnStyle("#334155")}>{usersLoading ? "読込中..." : "更新"}</button>
+        </div>
+        {users.length === 0 ? (
+          <div style={{ color: "#475569", fontSize: 13 }}>ユーザーがいません</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {users.map(u => (
+              <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "#0f172a", borderRadius: 8 }}>
+                <img src={avatarUrl(u.discord_id, u.avatar)} alt={u.username}
+                  style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #334155", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: "#e2e8f0" }}>{u.username}</div>
+                  <div style={{ fontSize: 10, color: "#475569" }}>{u.discord_id}</div>
+                </div>
+                {u.is_admin && <span style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 10, padding: "1px 6px", borderRadius: 4 }}>Admin</span>}
+                <button
+                  onClick={() => toggleScorer(u.id, u.is_scorer)}
+                  style={{
+                    ...btnStyle(u.is_scorer ? "#052e16" : "#1e293b"),
+                    border: `1px solid ${u.is_scorer ? "#166534" : "#334155"}`,
+                    color: u.is_scorer ? "#4ade80" : "#64748b",
+                    fontSize: 12, padding: "3px 10px",
+                  }}
+                >
+                  {u.is_scorer ? "✓ スコアラー" : "スコアラーにする"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ ...cardStyle, border: "1px solid #334155" }}>

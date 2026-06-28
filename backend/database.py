@@ -41,6 +41,7 @@ def init_db():
                     discriminator VARCHAR,
                     avatar VARCHAR,
                     is_admin BOOLEAN DEFAULT FALSE,
+                    is_scorer BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP NOT NULL
                 )
             """)
@@ -85,10 +86,11 @@ def init_db():
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_logs(created_at DESC)
             """)
-            # Migration: add columns to scores if they don't exist
+            # Migration: add columns if they don't exist
             for stmt in [
                 "ALTER TABLE scores ADD COLUMN user_id UUID REFERENCES users(id)",
                 "ALTER TABLE scores ADD COLUMN scored_by_username VARCHAR",
+                "ALTER TABLE users ADD COLUMN is_scorer BOOLEAN DEFAULT FALSE",
             ]:
                 cur.execute(f"""
                     DO $$ BEGIN {stmt};
@@ -108,16 +110,47 @@ def upsert_user(discord_id: str, username: str, discriminator: str, avatar: str 
                 cur.execute("""
                     UPDATE users SET username = %s, discriminator = %s, avatar = %s
                     WHERE discord_id = %s
-                    RETURNING id, discord_id, username, avatar, is_admin
+                    RETURNING id, discord_id, username, avatar, is_admin, is_scorer
                 """, (username, discriminator, avatar, discord_id))
             else:
                 uid = str(uuid.uuid4())
                 cur.execute("""
-                    INSERT INTO users (id, discord_id, username, discriminator, avatar, is_admin, created_at)
-                    VALUES (%s, %s, %s, %s, %s, FALSE, %s)
-                    RETURNING id, discord_id, username, avatar, is_admin
+                    INSERT INTO users (id, discord_id, username, discriminator, avatar, is_admin, is_scorer, created_at)
+                    VALUES (%s, %s, %s, %s, %s, FALSE, FALSE, %s)
+                    RETURNING id, discord_id, username, avatar, is_admin, is_scorer
                 """, (uid, discord_id, username, discriminator, avatar, datetime.now(timezone.utc)))
             return dict(cur.fetchone())
+
+
+def get_all_users() -> list[dict]:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id::text, discord_id, username, avatar, is_admin, is_scorer, created_at
+                FROM users ORDER BY created_at ASC
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].isoformat()
+            return rows
+
+
+def set_user_role(user_id: str, is_scorer: bool | None = None, is_admin: bool | None = None):
+    updates = []
+    values = []
+    if is_scorer is not None:
+        updates.append("is_scorer = %s")
+        values.append(is_scorer)
+    if is_admin is not None:
+        updates.append("is_admin = %s")
+        values.append(is_admin)
+    if not updates:
+        return
+    values.append(user_id)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = %s", values)
 
 
 # ── Activity Logs ───────────────────────────────────────────────────────────

@@ -288,15 +288,26 @@ def upsert_score(
                 return score_id
 
 
-def get_posts(limit: int = 50) -> list[dict]:
+def get_posts(limit: int = 50, source: str | None = None) -> list[dict]:
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at,
-                       s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
-                FROM posts p
-                LEFT JOIN scores s ON s.post_id = p.id
-                ORDER BY p.posted_at DESC
-                LIMIT %s
-            """, (limit,))
+            if source:
+                cur.execute("""
+                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at,
+                           s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
+                    FROM posts p
+                    LEFT JOIN scores s ON s.post_id = p.id
+                    WHERE p.source = %s
+                    ORDER BY p.posted_at DESC
+                    LIMIT %s
+                """, (source, limit))
+            else:
+                cur.execute("""
+                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at,
+                           s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
+                    FROM posts p
+                    LEFT JOIN scores s ON s.post_id = p.id
+                    ORDER BY p.posted_at DESC
+                    LIMIT %s
+                """, (limit,))
             return [dict(row) for row in cur.fetchall()]

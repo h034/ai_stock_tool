@@ -121,8 +121,8 @@ class ScoreRequest(BaseModel):
 
 
 @app.get("/posts")
-def list_posts(limit: int = 50, user: dict = Depends(get_current_user)):
-    posts = get_posts(limit=limit)
+def list_posts(limit: int = 50, source: Optional[str] = None, user: dict = Depends(get_current_user)):
+    posts = get_posts(limit=limit, source=source)
     for p in posts:
         if p.get("posted_at"):
             p["posted_at"] = p["posted_at"].isoformat()

@@ -131,17 +131,19 @@ function Dashboard({ user, onLogout }) {
   const [sourceFilter, setSourceFilter] = useState("all");
   const thresholdBubbleRef = useRef(null);
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (src) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/posts?limit=100`, { headers: authHeaders() });
+      const filter = src ?? sourceFilter;
+      const params = filter !== "all" ? `?limit=100&source=${filter}` : `?limit=100`;
+      const res = await axios.get(`${API_URL}/posts${params}`, { headers: authHeaders() });
       setPosts(res.data);
     } catch (e) {
       if (e.response?.status === 401) onLogout();
     } finally {
       setLoading(false);
     }
-  }, [onLogout]);
+  }, [onLogout, sourceFilter]);
 
   const fetchActivityLogs = useCallback(async () => {
     setLogsLoading(true);
@@ -166,10 +168,10 @@ function Dashboard({ user, onLogout }) {
   }, [onLogout]);
 
   useEffect(() => {
-    fetchPosts();
-    const id = setInterval(fetchPosts, 30000);
+    fetchPosts(sourceFilter);
+    const id = setInterval(() => fetchPosts(sourceFilter), 30000);
     return () => clearInterval(id);
-  }, [fetchPosts]);
+  }, [fetchPosts, sourceFilter]);
 
   useEffect(() => {
     if (tab === "logs") fetchActivityLogs();
@@ -274,7 +276,7 @@ function Dashboard({ user, onLogout }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[["all","全て"], ["truth_social","Truth Social"], ["x","X"]].map(([val, label]) => (
-                    <button key={val} onClick={() => setSourceFilter(val)}
+                    <button key={val} onClick={() => { setSourceFilter(val); fetchPosts(val); }}
                       style={{ ...btnStyle(sourceFilter === val ? "#1e3a5f" : "#0f172a"), color: sourceFilter === val ? "#93c5fd" : "#64748b", border: `1px solid ${sourceFilter === val ? "#3b82f6" : "#334155"}`, fontSize: 12, padding: "4px 10px" }}>
                       {label}
                     </button>

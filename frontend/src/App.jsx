@@ -522,12 +522,28 @@ function Dashboard({ user, onLogout }) {
             <div style={{ ...cardStyle, border: "1px solid #334155" }}>
               <h3 style={{ margin: "0 0 20px", fontSize: 15, color: "#f8fafc" }}>通知設定</h3>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <label style={{ fontSize: 14, color: "#94a3b8" }}>通知閾値スコア</label>
-                  <ScoreBadge score={threshold} />
+                <label style={{ fontSize: 14, color: "#94a3b8", display: "block", marginBottom: 10 }}>通知閾値スコア</label>
+                <div style={{ position: "relative", paddingTop: 28 }}>
+                  <div style={{
+                    position: "absolute", top: 0,
+                    left: `calc(${threshold}% + ${(8 - threshold * 0.16).toFixed(1)}px)`,
+                    transform: "translateX(-50%)",
+                    background: scoreColor(threshold),
+                    color: "#fff",
+                    padding: "2px 9px",
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    pointerEvents: "none",
+                    whiteSpace: "nowrap",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+                  }}>
+                    {threshold}%
+                  </div>
+                  <input type="range" min={0} max={100} value={threshold}
+                    onChange={(e) => setThreshold(Number(e.target.value))}
+                    style={{ width: "100%", accentColor: scoreColor(threshold), cursor: "pointer" }} />
                 </div>
-                <input type="range" min={0} max={100} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "#3b82f6" }} />
                 <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b" }}>
                   スコアが {threshold}% 以上の発言でLINE/メール通知が送信されます
                 </p>

@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || "https://ai-stock-tool-api.onrender.com";
 
 const SECTORS = [
@@ -101,6 +112,7 @@ export default function App() {
 // ── Dashboard ─────────────────────────────────────────────────────────────
 
 function Dashboard({ user, onLogout }) {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("feed");
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -206,23 +218,22 @@ function Dashboard({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "sans-serif" }}>
       {/* ヘッダー */}
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: isMobile ? "10px 14px" : "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 18, color: "#f8fafc" }}>トランプ発言影響スコアラー</h1>
-          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#64748b" }}>リアルタイム収集 × 人手スコアリング</p>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 14 : 18, color: "#f8fafc" }}>トランプ発言影響スコアラー</h1>
+          {!isMobile && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#64748b" }}>リアルタイム収集 × 人手スコアリング</p>}
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span style={{ background: "#22c55e22", color: "#22c55e", padding: "2px 10px", borderRadius: 12, fontSize: 12 }}>● Live</span>
-          <button onClick={fetchPosts} style={btnStyle("#334155")}>更新</button>
-          {/* ユーザーアバター */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#0f172a", borderRadius: 20, padding: "4px 12px 4px 4px" }}>
+        <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
+          <span style={{ background: "#22c55e22", color: "#22c55e", padding: "2px 8px", borderRadius: 12, fontSize: 11 }}>● Live</span>
+          {!isMobile && <button onClick={fetchPosts} style={btnStyle("#334155")}>更新</button>}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", borderRadius: 20, padding: "4px 10px 4px 4px" }}>
             <img
               src={avatarUrl(user.discord_id, user.avatar)}
               alt={user.username}
-              style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #334155" }}
+              style={{ width: 26, height: 26, borderRadius: "50%", border: "1px solid #334155" }}
             />
-            <span style={{ fontSize: 13, color: "#e2e8f0" }}>{user.username}</span>
-            {user.is_admin && <span style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 10, padding: "1px 6px", borderRadius: 4 }}>Admin</span>}
+            {!isMobile && <span style={{ fontSize: 13, color: "#e2e8f0" }}>{user.username}</span>}
+            {!isMobile && user.is_admin && <span style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 10, padding: "1px 6px", borderRadius: 4 }}>Admin</span>}
             <button onClick={onLogout} style={{ ...btnStyle("#1e293b"), fontSize: 11, padding: "2px 8px", color: "#64748b" }}>ログアウト</button>
           </div>
         </div>
@@ -236,27 +247,27 @@ function Dashboard({ user, onLogout }) {
       )}
 
       {/* タブ */}
-      <div style={{ display: "flex", gap: 4, padding: "16px 24px 0", borderBottom: "1px solid #334155" }}>
+      <div style={{ display: "flex", gap: 0, padding: isMobile ? "12px 14px 0" : "16px 24px 0", borderBottom: "1px solid #334155", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {[
-          ["feed", "発言フィード"],
-          ["history", "スコア履歴"],
-          ["mypage", "マイページ"],
-          ["logs", "操作ログ"],
+          ["feed", isMobile ? "フィード" : "発言フィード"],
+          ["history", isMobile ? "履歴" : "スコア履歴"],
+          ["mypage", isMobile ? "マイページ" : "マイページ"],
+          ["logs", isMobile ? "ログ" : "操作ログ"],
           ["settings", "設定"],
           ...(user.is_admin ? [["admin", "🛠 管理"]] : []),
         ].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            style={{ ...tabStyle, ...(tab === key ? tabActiveStyle : {}) }}>
+            style={{ ...tabStyle, ...(tab === key ? tabActiveStyle : {}), fontSize: isMobile ? 12 : 14, padding: isMobile ? "6px 10px" : "8px 16px", whiteSpace: "nowrap" }}>
             {label}
           </button>
         ))}
       </div>
 
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: isMobile ? "14px 12px" : 24 }}>
 
         {/* 発言フィード */}
         {tab === "feed" && (
-          <div style={{ display: "grid", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: (user.is_scorer && !isMobile) ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontSize: 14, color: "#94a3b8" }}>{posts.length} 件の発言</span>
@@ -296,7 +307,7 @@ function Dashboard({ user, onLogout }) {
 
             {/* スコアリングパネル（scorerのみ） */}
             {user.is_scorer && <div>
-              <div style={{ ...cardStyle, border: "1px solid #334155", position: "sticky", top: 20 }}>
+              <div style={{ ...cardStyle, border: "1px solid #334155", position: isMobile ? "static" : "sticky", top: 20 }}>
                 <h3 style={{ margin: "0 0 16px", fontSize: 15, color: "#f8fafc" }}>スコアリング</h3>
                 {selectedPost ? (
                   <>
@@ -441,7 +452,7 @@ function Dashboard({ user, onLogout }) {
             {!user.is_admin && <BootstrapButton onSuccess={onLogout} />}
 
             {myStats && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
                 <StatCard label="スコアリング数" value={myStats.total_scored} unit="件" />
                 <StatCard label="平均スコア" value={myStats.avg_score?.toFixed(1) ?? "—"} unit="%" />
                 <StatCard label="高インパクト発言" value={myStats.high_impact_count} unit="件 (70%+)" color="#ef4444" />
@@ -507,7 +518,7 @@ function Dashboard({ user, onLogout }) {
 
         {/* 設定 */}
         {tab === "settings" && (
-          <div style={{ maxWidth: 480 }}>
+          <div style={{ maxWidth: isMobile ? "100%" : 480 }}>
             <div style={{ ...cardStyle, border: "1px solid #334155" }}>
               <h3 style={{ margin: "0 0 20px", fontSize: 15, color: "#f8fafc" }}>通知設定</h3>
               <div style={{ marginBottom: 20 }}>
@@ -580,6 +591,7 @@ function BootstrapButton({ onSuccess }) {
 }
 
 function AdminPanel({ onRefresh }) {
+  const isMobile = useIsMobile();
   const [text, setText] = useState("");
   const [source, setSource] = useState("truth_social");
   const [submitting, setSubmitting] = useState(false);
@@ -624,7 +636,7 @@ function AdminPanel({ onRefresh }) {
   };
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: isMobile ? "100%" : 640 }}>
       <div style={{ ...cardStyle, border: "1px solid #7c3aed55", marginBottom: 16 }}>
         <h3 style={{ margin: "0 0 4px", fontSize: 15, color: "#a78bfa" }}>🛠 管理者パネル</h3>
         <p style={{ margin: "0 0 20px", fontSize: 12, color: "#64748b" }}>

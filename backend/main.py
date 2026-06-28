@@ -171,6 +171,16 @@ def health():
     return {"status": "ok"}
 
 
+@app.post("/setup/bootstrap")
+def bootstrap_admin(user: dict = Depends(get_current_user)):
+    """初回セットアップ専用。管理者がまだ誰もいない場合のみ有効。"""
+    all_users = get_all_users()
+    if any(u.get("is_admin") for u in all_users):
+        raise HTTPException(status_code=403, detail="管理者はすでに存在します")
+    set_user_role(user["sub"], is_scorer=True, is_admin=True)
+    return {"ok": True, "username": user["username"]}
+
+
 # ── Admin: Manual Post Injection ─────────────────────────────────────────────
 
 class ManualPost(BaseModel):

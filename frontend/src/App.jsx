@@ -407,8 +407,15 @@ function Dashboard({ user, onLogout }) {
               <div>
                 <h2 style={{ margin: 0, fontSize: 20, color: "#f8fafc" }}>{user.username}</h2>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>Discord ID: {user.discord_id}</p>
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  {user.is_admin && <span style={{ background: "#7c3aed22", color: "#a78bfa", fontSize: 11, padding: "2px 8px", borderRadius: 4 }}>Admin</span>}
+                  {user.is_scorer && <span style={{ background: "#052e1622", color: "#4ade80", fontSize: 11, padding: "2px 8px", borderRadius: 4 }}>スコアラー</span>}
+                </div>
               </div>
             </div>
+
+            {/* 初回セットアップ（自分がまだ管理者でない場合のみ表示） */}
+            {!user.is_admin && <BootstrapButton onSuccess={onLogout} />}
 
             {myStats && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
@@ -513,6 +520,41 @@ function Dashboard({ user, onLogout }) {
 }
 
 // ── Sub components ─────────────────────────────────────────────────────────
+
+function BootstrapButton({ onSuccess }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/setup/bootstrap`, {}, { headers: authHeaders() });
+      setStatus(`✅ ${res.data.username} を管理者＆スコアラーに設定しました。再ログインしてください。`);
+      setTimeout(onSuccess, 3000);
+    } catch (e) {
+      const msg = e.response?.data?.detail || e.message;
+      if (msg.includes("すでに存在")) setStatus(null);
+      else setStatus(`❌ ${msg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (status === null && !loading) {
+    return (
+      <div style={{ ...cardStyle, border: "1px solid #7c3aed55", marginBottom: 24, padding: "12px 16px" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 13, color: "#94a3b8" }}>
+          まだ管理者が設定されていません。あなたが最初の管理者になりますか？
+        </p>
+        <button onClick={run} style={{ ...btnStyle("#7c3aed"), fontWeight: "bold" }}>
+          自分を管理者＆スコアラーに設定する
+        </button>
+      </div>
+    );
+  }
+  if (status) return <div style={{ ...cardStyle, border: "1px solid #334155", marginBottom: 24, fontSize: 13, color: "#4ade80" }}>{status}</div>;
+  return <div style={{ color: "#64748b", fontSize: 13, marginBottom: 24 }}>設定中...</div>;
+}
 
 function AdminPanel({ onRefresh }) {
   const [text, setText] = useState("");

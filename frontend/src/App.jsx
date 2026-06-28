@@ -115,6 +115,7 @@ function Dashboard({ user, onLogout }) {
   const [logsLoading, setLogsLoading] = useState(false);
   const [myStats, setMyStats] = useState(null);
   const [myActivity, setMyActivity] = useState([]);
+  const [contentCollapsed, setContentCollapsed] = useState(true);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -166,6 +167,7 @@ function Dashboard({ user, onLogout }) {
     setScore(post.human_score ?? 50);
     setSectors(post.sectors ?? []);
     setMemo(post.memo ?? "");
+    setContentCollapsed(true);
   };
 
   const saveScore = async () => {
@@ -294,9 +296,29 @@ function Dashboard({ user, onLogout }) {
                 <h3 style={{ margin: "0 0 16px", fontSize: 15, color: "#f8fafc" }}>スコアリング</h3>
                 {selectedPost ? (
                   <>
-                    <div style={{ background: "#0f172a", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{SOURCE_LABEL[selectedPost.source]}</div>
-                      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>{selectedPost.content}</p>
+                    <div style={{ background: "#0f172a", borderRadius: 8, padding: 12, marginBottom: 16, position: "relative" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: "#64748b" }}>{SOURCE_LABEL[selectedPost.source]}</span>
+                        <button
+                          onClick={() => setContentCollapsed(c => !c)}
+                          style={{ background: "none", border: "none", color: "#475569", fontSize: 11, cursor: "pointer", padding: "0 4px" }}
+                        >
+                          {contentCollapsed ? "▼ 展開" : "▲ 閉じる"}
+                        </button>
+                      </div>
+                      <div style={{
+                        maxHeight: contentCollapsed ? "72px" : "none",
+                        overflow: "hidden",
+                        position: "relative",
+                      }}>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>{selectedPost.content}</p>
+                        {contentCollapsed && (
+                          <div style={{
+                            position: "absolute", bottom: 0, left: 0, right: 0, height: 28,
+                            background: "linear-gradient(transparent, #0f172a)",
+                          }} />
+                        )}
+                      </div>
                     </div>
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>

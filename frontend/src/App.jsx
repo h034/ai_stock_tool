@@ -321,14 +321,33 @@ function Dashboard({ user, onLogout }) {
                       </div>
                     </div>
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <label style={{ fontSize: 13, color: "#94a3b8" }}>株価影響スコア</label>
-                        <ScoreBadge score={score} />
+                      <label style={{ fontSize: 13, color: "#94a3b8", display: "block", marginBottom: 10 }}>株価影響スコア</label>
+                      {/* スライダー＋追従ラベル */}
+                      <div style={{ position: "relative", paddingTop: 28 }}>
+                        {/* スコア値がスライダーのつまみに追従 */}
+                        <div style={{
+                          position: "absolute",
+                          top: 0,
+                          left: `calc(${score}% + ${(8 - score * 0.16).toFixed(1)}px)`,
+                          transform: "translateX(-50%)",
+                          background: scoreColor(score),
+                          color: "#fff",
+                          padding: "2px 9px",
+                          borderRadius: 12,
+                          fontSize: 14,
+                          fontWeight: "bold",
+                          pointerEvents: "none",
+                          whiteSpace: "nowrap",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+                        }}>
+                          {score}%
+                        </div>
+                        <input type="range" min={0} max={100} value={score}
+                          onChange={(e) => setScore(Number(e.target.value))}
+                          style={{ width: "100%", accentColor: scoreColor(score), cursor: "pointer" }} />
                       </div>
-                      <input type="range" min={0} max={100} value={score} onChange={(e) => setScore(Number(e.target.value))}
-                        style={{ width: "100%", accentColor: scoreColor(score) }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#475569" }}>
-                        <span>0% 影響なし</span><span>50% 中程度</span><span>100% 非常に大</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#475569", marginTop: 4 }}>
+                        <span>低影響</span><span>中程度</span><span>高影響</span>
                       </div>
                     </div>
                     <div style={{ marginBottom: 16 }}>

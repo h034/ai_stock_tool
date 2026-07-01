@@ -138,7 +138,17 @@ function Dashboard({ user, onLogout }) {
       const filter = src ?? sourceFilter;
       const params = filter !== "all" ? `?limit=100&source=${filter}` : `?limit=100`;
       const res = await axios.get(`${API_URL}/posts${params}`, { headers: authHeaders() });
-      setPosts(res.data);
+      setPosts(prev => {
+        const next = res.data;
+        // データに変化がなければ同じ参照を返してReactの再描画をスキップ
+        if (prev.length === next.length &&
+            prev.every((p, i) => p.id === next[i]?.id &&
+                                 p.human_score === next[i]?.human_score &&
+                                 p.ai_score === next[i]?.ai_score)) {
+          return prev;
+        }
+        return next;
+      });
     } catch (e) {
       if (e.response?.status === 401) onLogout();
     } finally {

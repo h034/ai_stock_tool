@@ -321,7 +321,7 @@ def get_posts(limit: int = 50, source: str | None = None) -> list[dict]:
                     FROM posts p
                     LEFT JOIN scores s ON s.post_id = p.id
                     WHERE p.source = %s
-                    ORDER BY p.posted_at DESC
+                    ORDER BY p.posted_at DESC, p.id ASC
                     LIMIT %s
                 """, (source, limit))
             else:
@@ -330,7 +330,7 @@ def get_posts(limit: int = 50, source: str | None = None) -> list[dict]:
                            s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
                     FROM posts p
                     LEFT JOIN scores s ON s.post_id = p.id
-                    ORDER BY p.posted_at DESC
+                    ORDER BY p.posted_at DESC, p.id ASC
                     LIMIT %s
                 """, (limit,))
             return [dict(row) for row in cur.fetchall()]

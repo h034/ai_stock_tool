@@ -281,9 +281,8 @@ function Dashboard({ user, onLogout }) {
 
       <div className="main-content" style={{ padding: 24 }}>
 
-        {/* 発言フィード */}
-        {tab === "feed" && (
-          <div className="feed-grid" style={{ display: "grid", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
+        {/* 発言フィード（タブ切替時にアンマウントするとChrome翻訳後のDOMとReactの差分でremoveChildが失敗するため、常時マウントしdisplay切替のみで隠す） */}
+        <div className="feed-grid" style={{ display: tab === "feed" ? "grid" : "none", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -436,11 +435,9 @@ function Dashboard({ user, onLogout }) {
               </div>
             </div>}
           </div>
-        )}
 
         {/* スコア履歴 */}
-        {tab === "history" && (
-          <div>
+        <div style={{ display: tab === "history" ? "block" : "none" }}>
             <h3 style={{ margin: "0 0 16px", fontSize: 15, color: "#f8fafc" }}>スコア履歴 ({scoredPosts.length}件)</h3>
             {scoredPosts.length === 0 ? (
               <div style={{ textAlign: "center", color: "#475569", padding: 40 }}>まだスコアリングされた発言がありません</div>
@@ -470,12 +467,10 @@ function Dashboard({ user, onLogout }) {
                 ))}
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {/* マイページ */}
-        {tab === "mypage" && (
-          <div>
+        <div style={{ display: tab === "mypage" ? "block" : "none" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
               <img src={avatarUrl(user.discord_id, user.avatar)} alt={user.username}
                 style={{ width: 56, height: 56, borderRadius: "50%", border: "2px solid #3b82f6" }} />
@@ -510,12 +505,10 @@ function Dashboard({ user, onLogout }) {
                 ))}
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {/* 操作ログ */}
-        {tab === "logs" && (
-          <div>
+        <div style={{ display: tab === "logs" ? "block" : "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 15, color: "#f8fafc" }}>操作ログ（全ユーザー）</h3>
               <button onClick={fetchActivityLogs} style={btnStyle("#334155")}>
@@ -549,17 +542,17 @@ function Dashboard({ user, onLogout }) {
                 ))}
               </div>
             )}
+        </div>
+
+        {/* 管理パネル（adminのみ） */}
+        {user.is_admin && (
+          <div style={{ display: tab === "admin" ? "block" : "none" }}>
+            <AdminPanel onRefresh={fetchPosts} />
           </div>
         )}
 
-        {/* 管理パネル（adminのみ） */}
-        {tab === "admin" && user.is_admin && (
-          <AdminPanel onRefresh={fetchPosts} />
-        )}
-
         {/* 設定 */}
-        {tab === "settings" && (
-          <div className="settings-container" style={{ maxWidth: 480 }}>
+        <div className="settings-container" style={{ display: tab === "settings" ? "block" : "none", maxWidth: 480 }}>
             <div style={{ ...cardStyle, border: "1px solid #334155" }}>
               <h3 style={{ margin: "0 0 20px", fontSize: 15, color: "#f8fafc" }}>通知設定</h3>
               <div style={{ marginBottom: 20 }}>
@@ -599,8 +592,7 @@ function Dashboard({ user, onLogout }) {
               </div>
             </div>
             <ErrorLogPanel />
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

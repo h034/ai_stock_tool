@@ -20,7 +20,7 @@ const SECTORS = [
   "エネルギー", "テクノロジー", "金融", "ヘルスケア",
   "素材", "輸送・物流", "防衛", "農業", "小売", "自動車",
 ];
-const SOURCE_LABEL = { truth_social: "Truth Social", x: "X (旧Twitter)" };
+const SOURCE_LABEL = { truth_social: "Truth Social", x: "X (旧Twitter)", yahoo_finance: "ニュース", nyt: "NYT" };
 
 // ── Auth utilities ────────────────────────────────────────────────────────
 
@@ -287,7 +287,7 @@ function Dashboard({ user, onLogout }) {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", gap: 6 }}>
-                  {[["all","全て"], ["truth_social","Truth Social"], ["x","X"]].map(([val, label]) => (
+                  {[["all","全て"], ["truth_social","Truth Social"], ["x","X"], ["yahoo_finance","ニュース"], ["nyt","NYT"]].map(([val, label]) => (
                     <button key={val} onClick={() => { setSourceFilter(val); fetchPosts(val); }}
                       style={{ ...btnStyle(sourceFilter === val ? "#1e3a5f" : "#0f172a"), color: sourceFilter === val ? "#93c5fd" : "#64748b", border: `1px solid ${sourceFilter === val ? "#3b82f6" : "#334155"}`, fontSize: 12, padding: "4px 10px" }}>
                       {label}

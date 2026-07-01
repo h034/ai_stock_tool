@@ -8,12 +8,30 @@ import httpx
 from dotenv import load_dotenv
 
 from database import insert_post, bulk_insert_posts, upsert_ai_score
+from notifier import should_notify, notify
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 X_RSS_URL = os.getenv("X_RSS_URL", "")
+
+# Yahoo Finance の一般市場ニュースRSS（無料・無認証、5分ごと更新）
+YAHOO_FINANCE_RSS_URL = os.getenv(
+    "YAHOO_FINANCE_RSS_URL",
+    "https://finance.yahoo.com/news/rssindex",
+)
+
+# The New York Times のRSS（無料・無認証）。OpenAIのIPO見送り報道のように
+# NYTがスクープし後にReuters等が追随するケースを早期に拾うため、
+# Business/Technologyセクションを対象にする（DealBook記事もBusinessに含まれる）
+NYT_RSS_URLS = [
+    u.strip() for u in os.getenv(
+        "NYT_RSS_URLS",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml,"
+        "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
+    ).split(",") if u.strip()
+]
 
 # CNN が5分ごとに更新している Trump の Truth Social 全投稿アーカイブ
 # クラウドIPからアクセス可能（Truth Social 直接アクセスは403）
@@ -45,11 +63,16 @@ def _fire_callbacks(post_id: str, source: str, content: str):
             logger.error(f"callback error: {e}")
 
 
-async def _ai_score_post(post_id: str, content: str):
-    """新着投稿をGemini無料APIで自動スコアリングしてDBに保存する。"""
+async def _ai_score_post(post_id: str, content: str, content_type: str = "statement", source: str = ""):
+    """新着投稿をGemini無料APIで自動スコアリングしてDBに保存する。
+
+    ニュース(content_type="news")は件数が多く速報性が必要なため、
+    人間のスコアリングを待たずAIスコアが閾値以上なら自動でDiscord通知する。
+    トランプ発言(statement)側の通知タイミングは変更しない（人間スコア提出時のまま）。
+    """
     try:
         from ai_scorer import score_post
-        result = await score_post(content)
+        result = await score_post(content, content_type=content_type)
         if result:
             await asyncio.to_thread(
                 upsert_ai_score,
@@ -57,6 +80,8 @@ async def _ai_score_post(post_id: str, content: str):
                 f"AI分析: {result['reason']}" if result.get("reason") else "",
             )
             logger.info(f"[AI Scorer] {post_id[:8]}... → {result['score']}%")
+            if content_type == "news" and should_notify(result["score"]):
+                notify(content, result["score"], source)
     except Exception as e:
         logger.error(f"[AI Scorer] failed for {post_id[:8]}...: {e}")
 
@@ -200,7 +225,111 @@ async def poll_x_rss():
         await asyncio.sleep(30)
 
 
-# ── RSS parser（X用）──────────────────────────────────────────────────────────
+# ── Yahoo Finance 重要ニュース RSS ポーリング ───────────────────────────────
+
+async def poll_yahoo_finance_news():
+    """
+    Yahoo Financeの一般市場ニュースRSS（無料・無認証）を5分ごとにポーリングする。
+    IPO動向・M&A・金融政策等、市場全体に影響しうるニュースを検知する用途。
+    """
+    seen: set[str] = set()
+    first_run = True
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=HEADERS) as client:
+                resp = await client.get(YAHOO_FINANCE_RSS_URL)
+                resp.raise_for_status()
+                items = _parse_rss(resp.text)
+
+                saved = 0
+                for item in items:
+                    if item["guid"] in seen:
+                        continue
+                    seen.add(item["guid"])
+
+                    post_id = insert_post(
+                        source="yahoo_finance",
+                        post_id=item["guid"],
+                        content=item["title"],
+                        posted_at=item["pub_date"],
+                    )
+                    if post_id:
+                        saved += 1
+                        if not first_run:
+                            logger.info(f"[Yahoo Finance] new news: {item['title'][:80]}")
+                            _fire_callbacks(post_id, "yahoo_finance", item["title"])
+                            await _ai_score_post(post_id, item["title"], content_type="news", source="yahoo_finance")
+                            await asyncio.sleep(4)  # Gemini無料枠: 15RPM制限対策
+
+                if first_run:
+                    logger.info(f"[Yahoo Finance] startup: {saved} news saved from RSS")
+                    first_run = False
+
+        except Exception as e:
+            logger.error(f"[Yahoo Finance] RSS poll error: {e}")
+
+        await asyncio.sleep(300)  # フィードのttl(5分)に合わせてポーリング
+
+
+# ── The New York Times RSS ポーリング ───────────────────────────────────────
+
+async def poll_nyt_news():
+    """
+    NYTのBusiness/Technology RSS（無料・無認証）を5分ごとにポーリングする。
+    NYTが最初にスクープし、後からReuter等が追随して世界に広がるニュース
+    （例：OpenAIの今年のIPO見送り報道）を早期に検知する用途。
+    """
+    if not NYT_RSS_URLS:
+        logger.warning("NYT_RSS_URLS not set — NYT polling disabled.")
+        return
+
+    seen: set[str] = set()
+    first_run = True
+
+    while True:
+        try:
+            saved = 0
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=HEADERS) as client:
+                for url in NYT_RSS_URLS:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    items = _parse_rss(resp.text)
+
+                    for item in items:
+                        if item["guid"] in seen:
+                            continue
+                        seen.add(item["guid"])
+
+                        content = item["title"]
+                        if item.get("description") and item["description"] != item["title"]:
+                            content = f"{item['title']}\n\n{item['description']}"
+
+                        post_id = insert_post(
+                            source="nyt",
+                            post_id=item["guid"],
+                            content=content,
+                            posted_at=item["pub_date"],
+                        )
+                        if post_id:
+                            saved += 1
+                            if not first_run:
+                                logger.info(f"[NYT] new news: {item['title'][:80]}")
+                                _fire_callbacks(post_id, "nyt", content)
+                                await _ai_score_post(post_id, content, content_type="news", source="nyt")
+                                await asyncio.sleep(4)  # Gemini無料枠: 15RPM制限対策
+
+            if first_run:
+                logger.info(f"[NYT] startup: {saved} news saved from RSS")
+                first_run = False
+
+        except Exception as e:
+            logger.error(f"[NYT] RSS poll error: {e}")
+
+        await asyncio.sleep(300)
+
+
+# ── RSS parser（X・Yahoo Finance・NYT共通）──────────────────────────────────
 
 def _parse_rss(xml_text: str) -> list[dict]:
     from email.utils import parsedate_to_datetime
@@ -210,17 +339,27 @@ def _parse_rss(xml_text: str) -> list[dict]:
         root = ET.fromstring(xml_text)
         for item in root.iter("item"):
             title = item.findtext("title") or ""
+            description = _strip_html(item.findtext("description") or "")
             if not title:
-                desc = item.findtext("description") or ""
-                title = _strip_html(desc)
+                title = description
             guid = item.findtext("guid") or item.findtext("link") or ""
             pub_date_str = item.findtext("pubDate") or ""
+            pub_date = None
             try:
                 pub_date = parsedate_to_datetime(pub_date_str).astimezone(timezone.utc)
             except Exception:
-                pub_date = datetime.now(timezone.utc)
+                # Yahoo FinanceのpubDateはISO8601形式（例: 2026-07-01T12:58:34Z）のためフォールバック
+                try:
+                    pub_date = datetime.fromisoformat(pub_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+                except Exception:
+                    pub_date = datetime.now(timezone.utc)
             if title and guid:
-                items.append({"title": title.strip(), "guid": guid, "pub_date": pub_date})
+                items.append({
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "guid": guid,
+                    "pub_date": pub_date,
+                })
     except Exception as e:
         logger.error(f"RSS parse error: {e}")
     return items
@@ -238,4 +377,6 @@ async def start_collectors():
     await asyncio.gather(
         poll_truth_social(),
         poll_x_rss(),
+        poll_yahoo_finance_news(),
+        poll_nyt_news(),
     )

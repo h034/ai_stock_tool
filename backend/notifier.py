@@ -23,23 +23,36 @@ def should_notify(score: int) -> bool:
     return score >= SCORE_THRESHOLD
 
 
+SOURCE_LABELS = {
+    "truth_social": "Truth Social",
+    "x": "X",
+    "yahoo_finance": "Yahoo Finance ニュース",
+    "nyt": "The New York Times",
+}
+
+NEWS_SOURCES = {"yahoo_finance", "nyt"}
+
+
 def notify(content: str, score: int, source: str):
-    label = "Truth Social" if source == "truth_social" else "X"
+    label = SOURCE_LABELS.get(source, source)
+    is_news = source in NEWS_SOURCES
     color = 0xef4444 if score >= 70 else 0xf59e0b  # red / yellow
     if DISCORD_WEBHOOK_URL:
-        _notify_discord(content, score, label, color)
+        _notify_discord(content, score, label, color, is_news)
     if SMTP_HOST and NOTIFY_EMAIL:
+        subject = "重要ニュースアラート" if is_news else "トランプ発言アラート"
         message = f"[{label}] スコア {score}%\n\n{content}"
-        _notify_email(f"トランプ発言アラート（スコア {score}%）", message)
+        _notify_email(f"{subject}（スコア {score}%）", message)
 
 
-def _notify_discord(content: str, score: int, label: str, color: int):
+def _notify_discord(content: str, score: int, label: str, color: int, is_news: bool = False):
     try:
         # Discord Embed で見やすく送信
         short = content[:300] + ("..." if len(content) > 300 else "")
+        title = f"📰 重要ニュースアラート — スコア {score}%" if is_news else f"🚨 トランプ発言アラート — スコア {score}%"
         payload = {
             "embeds": [{
-                "title": f"🚨 トランプ発言アラート — スコア {score}%",
+                "title": title,
                 "description": short,
                 "color": color,
                 "fields": [

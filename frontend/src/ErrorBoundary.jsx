@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { recordError } from "./errorLog";
 
 const MAX_AUTO_RETRY = 3;
 
@@ -13,7 +14,8 @@ export default class ErrorBoundary extends Component {
     return { hasError: true };
   }
 
-  componentDidCatch() {
+  componentDidCatch(error, errorInfo) {
+    recordError(error, errorInfo?.componentStack);
     if (this.state.retryCount < MAX_AUTO_RETRY) {
       const retryCount = this.state.retryCount + 1;
       setTimeout(() => this.setState({ hasError: false, retryCount }), 50);

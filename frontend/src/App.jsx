@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import "./responsive.css";
+import { getErrorLog, clearErrorLog } from "./errorLog";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -597,9 +598,44 @@ function Dashboard({ user, onLogout }) {
                 <div>ヘルスチェック：<code style={{ color: "#22d3ee" }}>{API_URL}/health</code></div>
               </div>
             </div>
+            <ErrorLogPanel />
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ErrorLogPanel() {
+  const [logs, setLogs] = useState(() => getErrorLog());
+
+  return (
+    <div style={{ ...cardStyle, border: "1px solid #334155", marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 15, color: "#f8fafc" }}>エラーログ</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setLogs(getErrorLog())} style={{ ...btnStyle("#0f172a"), fontSize: 12, padding: "4px 10px" }}>更新</button>
+          <button onClick={() => { clearErrorLog(); setLogs([]); }} style={{ ...btnStyle("#0f172a"), fontSize: 12, padding: "4px 10px" }}>クリア</button>
+        </div>
+      </div>
+      {logs.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>記録されたエラーはありません。</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+          {[...logs].reverse().map((log, i) => (
+            <div key={i} style={{ background: "#0f172a", borderRadius: 8, padding: 10, fontSize: 12, color: "#94a3b8" }}>
+              <div style={{ color: "#f87171", fontWeight: "bold", marginBottom: 4 }}>{log.message}</div>
+              <div style={{ color: "#64748b", marginBottom: 4 }}>{new Date(log.time).toLocaleString("ja-JP")}</div>
+              {log.stack && (
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: 11, color: "#475569" }}>{log.stack}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ margin: "10px 0 0", fontSize: 11, color: "#475569" }}>
+        画面が真っ白になった場合など、ブラウザに記録されたエラー原因がここに表示されます（このブラウザのみ・最大20件）。
+      </p>
     </div>
   );
 }

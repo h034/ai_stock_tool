@@ -358,15 +358,13 @@ function Dashboard({ user, onLogout }) {
                         )}
                       </div>
                     </div>
-                    {selectedPost.ai_score != null && (
-                      <div style={{ background: "#1a0e3a", border: "1px solid #4c1d95", borderRadius: 8, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 12, color: "#a78bfa" }}>🤖 AI参考スコア:</span>
-                        <span style={{ fontSize: 14, fontWeight: "bold", color: scoreColor(selectedPost.ai_score) }}>{selectedPost.ai_score}%</span>
-                        {selectedPost.human_score == null && (
-                          <span style={{ fontSize: 11, color: "#6d28d9", marginLeft: 4 }}>← スライダーに反映済み</span>
-                        )}
-                      </div>
-                    )}
+                    <div style={{ display: selectedPost.ai_score != null ? "flex" : "none", background: "#1a0e3a", border: "1px solid #4c1d95", borderRadius: 8, padding: "8px 12px", marginBottom: 12, alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 12, color: "#a78bfa" }}>🤖 AI参考スコア:</span>
+                      <span style={{ fontSize: 14, fontWeight: "bold", color: scoreColor(selectedPost.ai_score ?? 0) }}>{selectedPost.ai_score}%</span>
+                      {selectedPost.human_score == null && (
+                        <span style={{ fontSize: 11, color: "#6d28d9", marginLeft: 4 }}>← スライダーに反映済み</span>
+                      )}
+                    </div>
                     <div style={{ marginBottom: 16 }}>
                       <label style={{ fontSize: 13, color: "#94a3b8", display: "block", marginBottom: 10 }}>株価影響スコア</label>
                       {/* スライダー＋追従ラベル */}

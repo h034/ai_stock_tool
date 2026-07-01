@@ -20,7 +20,10 @@ const SECTORS = [
   "エネルギー", "テクノロジー", "金融", "ヘルスケア",
   "素材", "輸送・物流", "防衛", "農業", "小売", "自動車",
 ];
-const SOURCE_LABEL = { truth_social: "Truth Social", x: "X (旧Twitter)", yahoo_finance: "ニュース", nyt: "NYT" };
+const SOURCE_LABEL = {
+  truth_social: "Truth Social", x: "X (旧Twitter)", yahoo_finance: "ニュース", nyt: "NYT",
+  reuters: "Reuters", bloomberg: "Bloomberg", the_information: "The Information",
+};
 
 // ── Auth utilities ────────────────────────────────────────────────────────
 
@@ -285,8 +288,8 @@ function Dashboard({ user, onLogout }) {
         <div className="feed-grid" style={{ display: tab === "feed" ? "grid" : "none", gridTemplateColumns: user.is_scorer ? "1fr 380px" : "1fr", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[["all","全て"], ["truth_social","Truth Social"], ["x","X"], ["yahoo_finance","ニュース"], ["nyt","NYT"]].map(([val, label]) => (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[["all","全て"], ["truth_social","Truth Social"], ["x","X"], ["yahoo_finance","ニュース"], ["nyt","NYT"], ["reuters","Reuters"], ["bloomberg","Bloomberg"], ["the_information","The Information"]].map(([val, label]) => (
                     <button key={val} onClick={() => { setSourceFilter(val); fetchPosts(val); }}
                       style={{ ...btnStyle(sourceFilter === val ? "#1e3a5f" : "#0f172a"), color: sourceFilter === val ? "#93c5fd" : "#64748b", border: `1px solid ${sourceFilter === val ? "#3b82f6" : "#334155"}`, fontSize: 12, padding: "4px 10px" }}>
                       {label}
@@ -307,6 +310,12 @@ function Dashboard({ user, onLogout }) {
                       <span style={{ fontSize: 11, color: "#64748b" }}>{formatTime(post.posted_at)}</span>
                     </div>
                     <p style={{ margin: "0 0 8px", fontSize: 14, lineHeight: 1.5 }}>{post.content}</p>
+                    {post.url && (
+                      <a href={post.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                        style={{ display: "inline-block", margin: "0 0 8px", fontSize: 11, color: "#3b82f6" }}>
+                        🔗 元記事を見る
+                      </a>
+                    )}
                     {post.human_score != null ? (
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <ScoreBadge score={post.human_score} />
@@ -367,6 +376,12 @@ function Dashboard({ user, onLogout }) {
                           }} />
                         )}
                       </div>
+                      {selectedPost.url && (
+                        <a href={selectedPost.url} target="_blank" rel="noopener noreferrer"
+                          style={{ display: "inline-block", marginTop: 8, fontSize: 11, color: "#3b82f6" }}>
+                          🔗 元記事を見る
+                        </a>
+                      )}
                     </div>
                     <div style={{ display: selectedPost.ai_score != null ? "flex" : "none", background: "#1a0e3a", border: "1px solid #4c1d95", borderRadius: 8, padding: "8px 12px", marginBottom: 12, alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 12, color: "#a78bfa" }}>🤖 AI参考スコア:</span>
@@ -460,6 +475,12 @@ function Dashboard({ user, onLogout }) {
                           </div>
                         )}
                         {post.memo && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#94a3b8" }}>{post.memo}</p>}
+                        {post.url && (
+                          <a href={post.url} target="_blank" rel="noopener noreferrer"
+                            style={{ display: "inline-block", marginTop: 6, fontSize: 11, color: "#3b82f6" }}>
+                            🔗 元記事を見る
+                          </a>
+                        )}
                       </div>
                       <ScoreBadge score={post.human_score} large />
                     </div>

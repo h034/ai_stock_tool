@@ -33,6 +33,32 @@ NYT_RSS_URLS = [
     ).split(",") if u.strip()
 ]
 
+# Reuters・Bloomberg・The Informationは公式の無料RSSが無いため、
+# Google Newsのsite:検索RSS（無料・無認証、個人の非商用利用が前提）で代替する
+GOOGLE_NEWS_SOURCES = {
+    "reuters": (
+        "Reuters",
+        os.getenv(
+            "REUTERS_RSS_URL",
+            "https://news.google.com/rss/search?q=site:reuters.com+when:1d&hl=en-US&gl=US&ceid=US:en",
+        ),
+    ),
+    "bloomberg": (
+        "Bloomberg",
+        os.getenv(
+            "BLOOMBERG_RSS_URL",
+            "https://news.google.com/rss/search?q=site:bloomberg.com+when:1d&hl=en-US&gl=US&ceid=US:en",
+        ),
+    ),
+    "the_information": (
+        "The Information",
+        os.getenv(
+            "THE_INFORMATION_RSS_URL",
+            "https://news.google.com/rss/search?q=site:theinformation.com+when:1d&hl=en-US&gl=US&ceid=US:en",
+        ),
+    ),
+}
+
 # CNN が5分ごとに更新している Trump の Truth Social 全投稿アーカイブ
 # クラウドIPからアクセス可能（Truth Social 直接アクセスは403）
 TRUTH_SOCIAL_JSON_URL = os.getenv(
@@ -140,6 +166,7 @@ async def poll_truth_social():
                     "post_id": pid,
                     "content": content,
                     "posted_at": posted_at,
+                    "url": post.get("url"),
                 })
 
                 if created_raw and (newest_date is None or created_raw > newest_date):
@@ -162,6 +189,7 @@ async def poll_truth_social():
                         insert_post,
                         post_data["source"], post_data["post_id"],
                         post_data["content"], post_data["posted_at"],
+                        post_data.get("url"),
                     )
                     if post_id:
                         new_posts.append({"id": post_id, "content": post_data["content"]})
@@ -207,6 +235,7 @@ async def poll_x_rss():
                         post_id=item["guid"],
                         content=item["title"],
                         posted_at=item["pub_date"],
+                        url=item.get("link") or None,
                     )
                     if post_id:
                         saved += 1
@@ -253,6 +282,7 @@ async def poll_yahoo_finance_news():
                         post_id=item["guid"],
                         content=item["title"],
                         posted_at=item["pub_date"],
+                        url=item.get("link") or None,
                     )
                     if post_id:
                         saved += 1
@@ -291,8 +321,8 @@ async def poll_nyt_news():
         try:
             saved = 0
             async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=HEADERS) as client:
-                for url in NYT_RSS_URLS:
-                    resp = await client.get(url)
+                for feed_url in NYT_RSS_URLS:
+                    resp = await client.get(feed_url)
                     resp.raise_for_status()
                     items = _parse_rss(resp.text)
 
@@ -310,6 +340,7 @@ async def poll_nyt_news():
                             post_id=item["guid"],
                             content=content,
                             posted_at=item["pub_date"],
+                            url=item.get("link") or None,
                         )
                         if post_id:
                             saved += 1
@@ -329,6 +360,54 @@ async def poll_nyt_news():
         await asyncio.sleep(300)
 
 
+# ── Reuters・Bloomberg・The Information（Google News経由）ポーリング ────────
+
+async def poll_google_news_source(source_key: str, label: str, feed_url: str):
+    """
+    Reuters/Bloomberg/The Informationは公式の無料RSSが無いため、
+    Google Newsのsite:検索RSSで代替して見出しを検知する。
+    """
+    seen: set[str] = set()
+    first_run = True
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=HEADERS) as client:
+                resp = await client.get(feed_url)
+                resp.raise_for_status()
+                items = _parse_rss(resp.text)
+
+                saved = 0
+                for item in items:
+                    if item["guid"] in seen:
+                        continue
+                    seen.add(item["guid"])
+
+                    post_id = insert_post(
+                        source=source_key,
+                        post_id=item["guid"],
+                        content=item["title"],
+                        posted_at=item["pub_date"],
+                        url=item.get("link") or None,
+                    )
+                    if post_id:
+                        saved += 1
+                        if not first_run:
+                            logger.info(f"[{label}] new news: {item['title'][:80]}")
+                            _fire_callbacks(post_id, source_key, item["title"])
+                            await _ai_score_post(post_id, item["title"], content_type="news", source=source_key)
+                            await asyncio.sleep(4)  # Gemini無料枠: 15RPM制限対策
+
+                if first_run:
+                    logger.info(f"[{label}] startup: {saved} news saved from RSS")
+                    first_run = False
+
+        except Exception as e:
+            logger.error(f"[{label}] RSS poll error: {e}")
+
+        await asyncio.sleep(300)
+
+
 # ── RSS parser（X・Yahoo Finance・NYT共通）──────────────────────────────────
 
 def _parse_rss(xml_text: str) -> list[dict]:
@@ -342,7 +421,8 @@ def _parse_rss(xml_text: str) -> list[dict]:
             description = _strip_html(item.findtext("description") or "")
             if not title:
                 title = description
-            guid = item.findtext("guid") or item.findtext("link") or ""
+            link = item.findtext("link") or ""
+            guid = item.findtext("guid") or link or ""
             pub_date_str = item.findtext("pubDate") or ""
             pub_date = None
             try:
@@ -358,6 +438,7 @@ def _parse_rss(xml_text: str) -> list[dict]:
                     "title": title.strip(),
                     "description": description.strip(),
                     "guid": guid,
+                    "link": link.strip(),
                     "pub_date": pub_date,
                 })
     except Exception as e:
@@ -374,9 +455,14 @@ def _strip_html(html: str) -> str:
 
 
 async def start_collectors():
+    google_news_tasks = [
+        poll_google_news_source(key, label, url)
+        for key, (label, url) in GOOGLE_NEWS_SOURCES.items()
+    ]
     await asyncio.gather(
         poll_truth_social(),
         poll_x_rss(),
         poll_yahoo_finance_news(),
         poll_nyt_news(),
+        *google_news_tasks,
     )

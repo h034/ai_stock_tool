@@ -28,9 +28,12 @@ SOURCE_LABELS = {
     "x": "X",
     "yahoo_finance": "Yahoo Finance ニュース",
     "nyt": "The New York Times",
+    "reuters": "Reuters",
+    "bloomberg": "Bloomberg",
+    "the_information": "The Information",
 }
 
-NEWS_SOURCES = {"yahoo_finance", "nyt"}
+NEWS_SOURCES = {"yahoo_finance", "nyt", "reuters", "bloomberg", "the_information"}
 
 
 def notify(content: str, score: int, source: str):

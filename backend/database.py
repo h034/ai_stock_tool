@@ -91,6 +91,7 @@ def init_db():
                 "ALTER TABLE scores ADD COLUMN user_id UUID REFERENCES users(id)",
                 "ALTER TABLE scores ADD COLUMN scored_by_username VARCHAR",
                 "ALTER TABLE users ADD COLUMN is_scorer BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE posts ADD COLUMN url VARCHAR",
             ]:
                 cur.execute(f"""
                     DO $$ BEGIN {stmt};
@@ -213,23 +214,23 @@ def get_user_score_stats(user_id: str) -> dict:
 
 # ── Posts & Scores ──────────────────────────────────────────────────────────
 
-def insert_post(source: str, post_id: str, content: str, posted_at: datetime) -> str | None:
+def insert_post(source: str, post_id: str, content: str, posted_at: datetime, url: str | None = None) -> str | None:
     new_id = str(uuid.uuid4())
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO posts (id, source, post_id, content, posted_at, fetched_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO posts (id, source, post_id, content, posted_at, fetched_at, url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (source, post_id) DO NOTHING
                 RETURNING id
-            """, (new_id, source, post_id, content, posted_at, datetime.now(timezone.utc)))
+            """, (new_id, source, post_id, content, posted_at, datetime.now(timezone.utc), url))
             row = cur.fetchone()
             return row["id"] if row else None
 
 
 def bulk_insert_posts(posts: list[dict]) -> int:
     """
-    posts: list of {source, post_id, content, posted_at}
+    posts: list of {source, post_id, content, posted_at, url(optional)}
     1トランザクションで一括挿入。重複はスキップ。
     挿入件数を返す。
     """
@@ -237,7 +238,7 @@ def bulk_insert_posts(posts: list[dict]) -> int:
         return 0
     now = datetime.now(timezone.utc)
     values = [
-        (str(uuid.uuid4()), p["source"], p["post_id"], p["content"], p["posted_at"], now)
+        (str(uuid.uuid4()), p["source"], p["post_id"], p["content"], p["posted_at"], now, p.get("url"))
         for p in posts
     ]
     with get_db() as conn:
@@ -246,7 +247,7 @@ def bulk_insert_posts(posts: list[dict]) -> int:
             execute_values(
                 cur,
                 """
-                INSERT INTO posts (id, source, post_id, content, posted_at, fetched_at)
+                INSERT INTO posts (id, source, post_id, content, posted_at, fetched_at, url)
                 VALUES %s
                 ON CONFLICT (source, post_id) DO NOTHING
                 """,
@@ -316,7 +317,7 @@ def get_posts(limit: int = 50, source: str | None = None) -> list[dict]:
         with conn.cursor() as cur:
             if source:
                 cur.execute("""
-                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at,
+                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at, p.url,
                            s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
                     FROM posts p
                     LEFT JOIN scores s ON s.post_id = p.id
@@ -326,7 +327,7 @@ def get_posts(limit: int = 50, source: str | None = None) -> list[dict]:
                 """, (source, limit))
             else:
                 cur.execute("""
-                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at,
+                    SELECT p.id, p.source, p.content, p.posted_at, p.fetched_at, p.url,
                            s.human_score, s.ai_score, s.sectors, s.memo, s.scored_by_username
                     FROM posts p
                     LEFT JOIN scores s ON s.post_id = p.id

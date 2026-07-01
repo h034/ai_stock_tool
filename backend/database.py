@@ -271,9 +271,11 @@ def upsert_score(
             existing = cur.fetchone()
             now = datetime.now(timezone.utc)
             if existing:
+                # ai_score=None のとき既存のAIスコアを保持する（COALESCE）
                 cur.execute("""
                     UPDATE scores
-                    SET human_score = %s, ai_score = %s, sectors = %s, memo = %s,
+                    SET human_score = %s, ai_score = COALESCE(%s::integer, ai_score),
+                        sectors = %s, memo = %s,
                         scored_at = %s, user_id = %s, scored_by_username = %s
                     WHERE post_id = %s
                 """, (human_score, ai_score, sectors, memo, now, user_id, scored_by_username, post_id))
@@ -285,6 +287,27 @@ def upsert_score(
                         (id, post_id, human_score, ai_score, sectors, memo, scored_at, user_id, scored_by_username)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (score_id, post_id, human_score, ai_score, sectors, memo, now, user_id, scored_by_username))
+                return score_id
+
+
+def upsert_ai_score(post_id: str, ai_score: int, sectors: list[str], memo: str) -> str:
+    """AIスコアのみを保存。既存レコードがあればai_scoreだけ更新（人間スコアは触らない）。"""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM scores WHERE post_id = %s", (post_id,))
+            existing = cur.fetchone()
+            now = datetime.now(timezone.utc)
+            if existing:
+                cur.execute("""
+                    UPDATE scores SET ai_score = %s, scored_at = %s WHERE post_id = %s
+                """, (ai_score, now, post_id))
+                return existing["id"]
+            else:
+                score_id = str(uuid.uuid4())
+                cur.execute("""
+                    INSERT INTO scores (id, post_id, ai_score, sectors, memo, scored_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (score_id, post_id, ai_score, sectors, memo, now))
                 return score_id
 
 

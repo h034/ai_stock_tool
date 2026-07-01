@@ -7,7 +7,7 @@ import re
 import httpx
 from dotenv import load_dotenv
 
-from database import insert_post, bulk_insert_posts
+from database import insert_post, bulk_insert_posts, upsert_ai_score
 
 load_dotenv()
 
@@ -43,6 +43,22 @@ def _fire_callbacks(post_id: str, source: str, content: str):
             cb(post_id, source, content)
         except Exception as e:
             logger.error(f"callback error: {e}")
+
+
+async def _ai_score_post(post_id: str, content: str):
+    """新着投稿をGemini無料APIで自動スコアリングしてDBに保存する。"""
+    try:
+        from ai_scorer import score_post
+        result = await score_post(content)
+        if result:
+            await asyncio.to_thread(
+                upsert_ai_score,
+                post_id, result["score"], result["sectors"],
+                f"AI分析: {result['reason']}" if result.get("reason") else "",
+            )
+            logger.info(f"[AI Scorer] {post_id[:8]}... → {result['score']}%")
+    except Exception as e:
+        logger.error(f"[AI Scorer] failed for {post_id[:8]}...: {e}")
 
 
 # ── Truth Social（CNN アーカイブ JSON）ポーリング ───────────────────────────
@@ -104,20 +120,31 @@ async def poll_truth_social():
                 if created_raw and (newest_date is None or created_raw > newest_date):
                     newest_date = created_raw
 
-            # DB挿入をバックグラウンドスレッドで実行（イベントループをブロックしない）
-            if to_insert:
-                saved = await asyncio.to_thread(bulk_insert_posts, to_insert)
-            else:
-                saved = 0
-
+            # DB挿入をバックグラウンドスレッドで実行
             if first_run:
+                # 起動時の一括ロードは bulk_insert（AIスコアリングはスキップ）
+                saved = await asyncio.to_thread(bulk_insert_posts, to_insert) if to_insert else 0
                 logger.info(
                     f"[Truth Social] startup: {saved} posts loaded from CNN archive "
                     f"(archive total: {len(all_posts)})"
                 )
                 first_run = False
-            elif saved > 0:
-                logger.info(f"[Truth Social] {saved} new posts")
+            else:
+                # 増分更新：個別にINSERTしてIDを取得→AIスコアリング
+                new_posts = []
+                for post_data in to_insert:
+                    post_id = await asyncio.to_thread(
+                        insert_post,
+                        post_data["source"], post_data["post_id"],
+                        post_data["content"], post_data["posted_at"],
+                    )
+                    if post_id:
+                        new_posts.append({"id": post_id, "content": post_data["content"]})
+                if new_posts:
+                    logger.info(f"[Truth Social] {len(new_posts)} new posts")
+                    for p in new_posts:
+                        await _ai_score_post(p["id"], p["content"])
+                        await asyncio.sleep(4)  # Gemini無料枠: 15RPM制限対策
 
         except httpx.HTTPStatusError as e:
             logger.error(f"[Truth Social] HTTP {e.response.status_code}: {TRUTH_SOCIAL_JSON_URL}")
@@ -161,6 +188,7 @@ async def poll_x_rss():
                         if not first_run:
                             logger.info(f"[X] new post: {item['title'][:80]}")
                             _fire_callbacks(post_id, "x", item["title"])
+                            await _ai_score_post(post_id, item["title"])
 
                 if first_run:
                     logger.info(f"[X] startup: {saved} posts saved from RSS")

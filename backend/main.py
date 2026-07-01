@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from database import (
-    init_db, get_posts, upsert_score, insert_post,
+    init_db, get_posts, upsert_score, upsert_ai_score, insert_post,
     upsert_user, log_activity, get_activity_logs, get_user_activity, get_user_score_stats,
     get_all_users, set_user_role,
 )
